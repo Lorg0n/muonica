@@ -14,11 +14,21 @@ import java.util.Set;
 public final class DocumentationComposer {
     public static final Set<String> SLOTS = Set.of("request", "responses", "parameters", "security");
     private static final List<String> GENERATED_ORDER = List.of("request", "responses", "parameters", "security");
+    private final boolean strict;
+
+    public DocumentationComposer() {
+        this(true);
+    }
+
+    public DocumentationComposer(boolean strict) {
+        this.strict = strict;
+    }
 
     public DocumentationResolution compose(DocumentationResolution project, DocumentationResolution group,
             DocumentationResolution endpoint) {
         List<Scope> scopes = List.of(new Scope(project.blocks(), 0), new Scope(group.blocks(), 1), new Scope(endpoint.blocks(), 2));
         Map<String, SlotPosition> owners = new LinkedHashMap<>();
+        List<DocumentationWarning> warnings = new ArrayList<>();
         for (Scope scope : scopes) {
             Map<String, Integer> localSlots = new LinkedHashMap<>();
             for (int index = 0; index < scope.blocks().size(); index++) {
@@ -26,7 +36,12 @@ public final class DocumentationComposer {
                 if (!block.type().equals("slot")) continue;
                 String name = String.valueOf(block.attributes().get("name"));
                 if (localSlots.putIfAbsent(name, index) != null) {
-                    throw new DocumentationException("DUPLICATE_SLOT", source(block), line(block), "Duplicate slot '" + name + "'");
+                    SlotPosition first = new SlotPosition(scope.level(), localSlots.get(name), scope.blocks().get(localSlots.get(name)));
+                    if (strict) {
+                        throw new DocumentationException("DUPLICATE_SLOT", source(block), line(block), duplicateMessage(name, first.block(), block));
+                    }
+                    warnings.add(new DocumentationWarning("DUPLICATE_SLOT", source(block), line(block), duplicateMessage(name, first.block(), block)));
+                    continue;
                 }
                 owners.put(name, new SlotPosition(scope.level(), index, block));
             }
@@ -49,9 +64,6 @@ public final class DocumentationComposer {
                 result.add(new DocumentationBlock("slot", "", Map.of("name", slot, "generated", true), DocumentationOrigin.GENERATED));
             }
         }
-        List<DocumentationWarning> warnings = new ArrayList<>();
-        warnings.addAll(project.warnings());
-        warnings.addAll(group.warnings());
         warnings.addAll(endpoint.warnings());
         return new DocumentationResolution(result, warnings);
     }
@@ -67,6 +79,16 @@ public final class DocumentationComposer {
     private static Integer line(DocumentationBlock block) {
         Object line = block.attributes().get("line");
         return line instanceof Integer value ? value : null;
+    }
+
+    private static String duplicateMessage(String name, DocumentationBlock first, DocumentationBlock duplicate) {
+        return "Duplicate slot '" + name + "' was ignored. First declaration: " + declaration(first)
+                + ". Duplicate declaration: " + declaration(duplicate) + ".";
+    }
+
+    private static String declaration(DocumentationBlock block) {
+        Integer line = line(block);
+        return source(block) + (line == null ? "" : ":" + line);
     }
 
     private record Scope(List<DocumentationBlock> blocks, int level) { }

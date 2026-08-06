@@ -35,10 +35,12 @@ public final class DocumentationResolver {
                 List<DocumentationBlock> resolved = resolveAnnotation(annotation, source);
                 List<DocumentationBlock> pending = new ArrayList<>();
                 for (DocumentationBlock block : resolved) {
-                    if (block.type().equals("slot") && (blocks.stream().anyMatch(existing -> isSameSlot(existing, block))
-                            || pending.stream().anyMatch(existing -> isSameSlot(existing, block)))) {
-                        throw new DocumentationException("DUPLICATE_SLOT", source(block, sourceName(source)), line(block),
-                                "Duplicate slot '" + block.attributes().get("name") + "'");
+                    if (block.type().equals("slot")) {
+                        DocumentationBlock first = firstDuplicate(blocks, pending, block);
+                        if (first != null) {
+                            throw new DocumentationException("DUPLICATE_SLOT", source(block, sourceName(source)), line(block),
+                                    duplicateMessage(String.valueOf(block.attributes().get("name")), first, block));
+                        }
                     }
                     pending.add(block);
                 }
@@ -83,6 +85,17 @@ public final class DocumentationResolver {
                 && left.attributes().get("name").equals(right.attributes().get("name"));
     }
 
+    private static DocumentationBlock firstDuplicate(List<DocumentationBlock> blocks, List<DocumentationBlock> pending,
+            DocumentationBlock block) {
+        for (DocumentationBlock existing : blocks) {
+            if (isSameSlot(existing, block)) return existing;
+        }
+        for (DocumentationBlock existing : pending) {
+            if (isSameSlot(existing, block)) return existing;
+        }
+        return null;
+    }
+
     private static Integer line(DocumentationBlock block) {
         Object line = block.attributes().get("line");
         return line instanceof Integer value ? value : null;
@@ -91,6 +104,16 @@ public final class DocumentationResolver {
     private static String source(DocumentationBlock block, String fallback) {
         Object source = block.attributes().get("source");
         return source == null ? fallback : source.toString();
+    }
+
+    private static String duplicateMessage(String name, DocumentationBlock first, DocumentationBlock duplicate) {
+        return "Duplicate slot '" + name + "' was ignored. First declaration: " + declaration(first)
+                + ". Duplicate declaration: " + declaration(duplicate) + ".";
+    }
+
+    private static String declaration(DocumentationBlock block) {
+        Integer line = line(block);
+        return source(block, "documentation") + (line == null ? "" : ":" + line);
     }
 
     private static String sourceName(AnnotatedElement source) {

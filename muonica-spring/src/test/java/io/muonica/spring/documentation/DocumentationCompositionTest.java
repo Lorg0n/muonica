@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.muonica.core.model.DocumentationBlock;
 import io.muonica.core.model.DocumentationOrigin;
+import io.muonica.core.model.DocumentationWarning;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -71,6 +72,41 @@ class DocumentationCompositionTest {
     }
 
     @Test
+    void nonStrictComposerIgnoresDuplicateAndReportsDuplicateDeclaration() {
+        DocumentationResolution duplicate = resolution(
+                slot("request", "classpath:/muonica/users/get-user.md", 8),
+                slot("request", "classpath:/muonica/users/get-user.md", 21));
+
+        DocumentationResolution result = new DocumentationComposer(false).compose(duplicate,
+                DocumentationResolution.empty(), DocumentationResolution.empty());
+
+        assertEquals(List.of("request", "responses", "parameters", "security"), result.blocks().stream()
+                .filter(block -> block.type().equals("slot"))
+                .map(block -> block.attributes().get("name")).toList());
+        assertEquals(1, result.warnings().size());
+        assertEquals("DUPLICATE_SLOT", result.warnings().get(0).type());
+        assertEquals("classpath:/muonica/users/get-user.md", result.warnings().get(0).resource());
+        assertEquals(21, result.warnings().get(0).line());
+        assertEquals("Duplicate slot 'request' was ignored. First declaration: "
+                + "classpath:/muonica/users/get-user.md:8. Duplicate declaration: "
+                + "classpath:/muonica/users/get-user.md:21.", result.warnings().get(0).message());
+    }
+
+    @Test
+    void composedWarningsStayAtTheirOriginalScope() {
+        DocumentationWarning projectWarning = new DocumentationWarning("PROJECT", "project.md", 1, "project");
+        DocumentationWarning groupWarning = new DocumentationWarning("GROUP", "group.md", 2, "group");
+        DocumentationWarning endpointWarning = new DocumentationWarning("ENDPOINT", "endpoint.md", 3, "endpoint");
+
+        DocumentationResolution result = new DocumentationComposer().compose(
+                new DocumentationResolution(List.of(), List.of(projectWarning)),
+                new DocumentationResolution(List.of(), List.of(groupWarning)),
+                new DocumentationResolution(List.of(), List.of(endpointWarning)));
+
+        assertEquals(List.of(endpointWarning), result.warnings());
+    }
+
+    @Test
     void nonStrictResolverReturnsWarningForMissingResource() {
         MockEnvironment environment = new MockEnvironment().withProperty("muonica.documentation.strict", "false");
         DocumentationResolver resolver = new DocumentationResolver(new DocumentationFileLoader(new DefaultResourceLoader()), parser, environment);
@@ -92,6 +128,10 @@ class DocumentationCompositionTest {
         assertTrue(result.blocks().isEmpty());
         assertEquals("DUPLICATE_SLOT", result.warnings().get(0).type());
         assertEquals("classpath:/duplicate-slots.md", result.warnings().get(0).resource());
+        assertEquals(4, result.warnings().get(0).line());
+        assertEquals("Duplicate slot 'request' was ignored. First declaration: "
+                + "classpath:/duplicate-slots.md:1. Duplicate declaration: "
+                + "classpath:/duplicate-slots.md:4.", result.warnings().get(0).message());
     }
 
     private static DocumentationResolution resolution(DocumentationBlock... blocks) {
@@ -104,6 +144,10 @@ class DocumentationCompositionTest {
 
     private static DocumentationBlock slot(String name) {
         return new DocumentationBlock("slot", "", Map.of("name", name, "generated", false));
+    }
+
+    private static DocumentationBlock slot(String name, String source, int line) {
+        return new DocumentationBlock("slot", "", Map.of("name", name, "generated", false, "source", source, "line", line));
     }
 
     @io.muonica.core.annotation.MuonicaDocumentation(file = "classpath:/missing-doc.md")
