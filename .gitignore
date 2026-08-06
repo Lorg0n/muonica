@@ -1,0 +1,18 @@
+.gradle/
+build/
+**/build/
+.idea/
+*.iml
+
+# IntelliJ IDEA local state
+*.ipr
+*.iws
+out/
+
+# Java
+*.class
+hs_err_pid*
+
+# Environment and editor files
+.env
+.DS_Store
