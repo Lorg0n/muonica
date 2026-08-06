@@ -17,8 +17,12 @@ const requestBodies = new Map();
 const pathValues = new Map();
 const activeTabs = new Map();
 
-function selectedEndpoint() {
+function selectedEntry() {
     return allEndpoints(project).find(item => item.key === selectedKey);
+}
+
+function selectedEndpoint() {
+    return selectedEntry()?.endpoint;
 }
 
 function selectedState() {
@@ -223,7 +227,7 @@ function attachRequestInteractions() {
 }
 
 function render() {
-    app.innerHTML = renderShell(project, selectedEndpoint(), query, menuOpen, selectedState());
+    app.innerHTML = renderShell(project, selectedEntry(), query, menuOpen, selectedState());
     attachRequestInteractions();
 
     const updateQuery = event => {
