@@ -5,10 +5,11 @@ import io.muonica.openapi.OpenApiExporter;
 import io.muonica.spring.scan.MuonicaEndpointScanner;
 import java.util.Map;
 import org.springframework.http.MediaType;
+import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.ResponseBody;
 
-@RestController
+@Controller
 public final class MuonicaDocumentationController {
     private final MuonicaEndpointScanner scanner;
     private final OpenApiExporter openApiExporter = new OpenApiExporter();
@@ -21,8 +22,10 @@ public final class MuonicaDocumentationController {
     }
 
     @GetMapping("/muonica/api")
+    @ResponseBody
     public ApiProject api() { return scanner.scan(); }
 
     @GetMapping("/muonica/openapi.json")
+    @ResponseBody
     public Map<String, Object> openapi() { return openApiExporter.export(scanner.scan()); }
 }

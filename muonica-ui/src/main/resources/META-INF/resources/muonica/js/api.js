@@ -1,4 +1,4 @@
-const API_URL = "/muonica/api";
+const API_URL = "./api";
 
 export async function loadProject() {
     const response = await fetch(API_URL, { headers: { Accept: "application/json" } });
