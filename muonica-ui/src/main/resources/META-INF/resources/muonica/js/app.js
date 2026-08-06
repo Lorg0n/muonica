@@ -5,20 +5,28 @@ const app = document.querySelector("#app");
 let project;
 let selectedKey;
 let query = "";
+let menuOpen = false;
 
 function selectedEndpoint() {
     return allEndpoints(project).find(item => item.key === selectedKey);
 }
 
 function render() {
-    app.innerHTML = renderShell(project, selectedEndpoint(), query);
-    app.querySelector("#search")?.addEventListener("input", event => {
+    app.innerHTML = renderShell(project, selectedEndpoint(), query, menuOpen);
+    const updateQuery = event => {
         query = event.target.value;
         render();
-        app.querySelector("#search")?.focus();
+        app.querySelector(menuOpen ? "#mobile-search" : "#search")?.focus();
+    };
+    app.querySelector("#search")?.addEventListener("input", updateQuery);
+    app.querySelector("#mobile-search")?.addEventListener("input", updateQuery);
+    app.querySelector("#menu-toggle")?.addEventListener("click", () => {
+        menuOpen = !menuOpen;
+        render();
     });
     app.querySelectorAll(".endpoint-link").forEach(button => button.addEventListener("click", () => {
         selectedKey = button.dataset.endpoint;
+        menuOpen = false;
         render();
     }));
     app.querySelectorAll(".copy-code").forEach(button => button.addEventListener("click", async () => {
@@ -32,6 +40,13 @@ function render() {
         }
     }));
 }
+
+window.addEventListener("keydown", event => {
+    if (event.key === "Escape" && menuOpen) {
+        menuOpen = false;
+        render();
+    }
+});
 
 async function start() {
     app.innerHTML = `<div class="grid min-h-screen place-items-center text-muted">Loading documentation…</div>`;

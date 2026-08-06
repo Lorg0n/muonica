@@ -68,17 +68,17 @@ function documentationBlocks(blocks) {
     return (blocks || []).map(block => `<article class="rounded-xl border border-line bg-surface p-4"><p class="mb-2 text-xs font-bold uppercase text-dim">${escapeHtml(block.type)}</p><pre class="whitespace-pre-wrap text-sm text-muted">${escapeHtml(block.content)}</pre></article>`).join("");
 }
 
-export function renderShell(project, selected, query) {
+export function renderShell(project, selected, query, menuOpen = false) {
     const groups = project.groups || [];
     const endpoint = selected?.endpoint;
     const title = endpoint ? endpoint.summary || `${endpoint.method} ${endpoint.path}` : project.name || "Muonica";
     const pathParameters = (endpoint?.parameters || []).filter(parameter => parameter.location === "PATH");
     const otherParameters = (endpoint?.parameters || []).filter(parameter => parameter.location !== "PATH");
     return `<header class="sticky top-0 z-20 flex h-[74px] items-center justify-between gap-5 border-b border-[#111216] bg-canvas px-5 lg:px-6">
-        <div class="flex min-w-0 items-center gap-3"><span class="h-7 w-7 shrink-0 rounded-lg bg-coral"></span><span class="text-xl font-bold">muonica</span><span class="rounded-full border border-line px-2 py-1 text-xs font-semibold text-muted">API</span></div>
+        <div class="flex min-w-0 items-center gap-3"><button id="menu-toggle" class="rounded-lg border border-line p-2 text-muted lg:hidden" aria-label="Toggle documentation navigation" aria-expanded="${menuOpen}">☰</button><span class="h-7 w-7 shrink-0 rounded-lg bg-coral"></span><span class="text-xl font-bold">muonica</span><span class="hidden rounded-full border border-line px-2 py-1 text-xs font-semibold text-muted sm:inline">API</span></div>
         <label class="hidden w-full max-w-[350px] items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-muted md:flex"><span aria-hidden="true">⌕</span><input id="search" class="w-full bg-transparent text-sm outline-none placeholder:text-muted" placeholder="Search documentation" value="${escapeHtml(query)}" autocomplete="off"></label>
         <div class="hidden items-center gap-3 text-sm text-muted sm:flex"><span>v${escapeHtml(project.version || "0.0.0")}</span><span class="h-2 w-2 rounded-full bg-[#aaa8b1]"></span><span>API key</span><button disabled class="rounded-lg border border-line p-2 text-dim" aria-label="API key settings">⚿</button></div>
-    </header>
+    </header>${menuOpen ? `<div class="fixed inset-x-0 top-[74px] z-30 max-h-[calc(100vh-74px)] overflow-y-auto border-b border-line bg-canvas p-6 lg:hidden"><label class="mb-6 flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-muted"><span aria-hidden="true">⌕</span><input id="mobile-search" class="w-full bg-transparent text-sm outline-none placeholder:text-muted" placeholder="Search documentation" value="${escapeHtml(query)}" autocomplete="off"></label><nav aria-label="API navigation">${renderNavigation(groups, selected?.key, query)}</nav></div>` : ""}
     <div class="flex min-h-[calc(100vh-74px)]">
         <aside class="hidden w-[310px] shrink-0 border-r border-[#0e0f11] bg-canvas p-7 lg:block"><nav id="sidebar" aria-label="API navigation">${renderNavigation(groups, selected?.key, query)}</nav></aside>
         <main class="min-w-0 flex-1 bg-panel p-6 md:p-10 lg:p-12">
@@ -96,7 +96,7 @@ function renderNavigation(groups, selectedKey, query) {
         return `<section class="mb-7"><h2 class="mb-3 text-xs font-bold uppercase text-ink">${escapeHtml(group.name || "API")}</h2><div class="space-y-1">${endpoints.map(endpoint => {
             const key = `${groupIndex}:${group.endpoints.indexOf(endpoint)}`;
             const selected = key === selectedKey;
-            return `<button class="endpoint-link flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm ${selected ? "border-l-2 border-coral bg-[#171719] font-semibold text-ink" : "text-muted hover:bg-[#111214] hover:text-ink"}" data-endpoint="${key}">${methodBadge(endpoint.method)}<span class="truncate">${escapeHtml(endpoint.summary || endpoint.path)}</span></button>`;
+            return `<button class="endpoint-link flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm ${selected ? "border-l-2 border-coral bg-[#171719] font-semibold text-ink" : "text-muted hover:bg-[#111214] hover:text-ink"}" data-endpoint="${key}" ${selected ? 'aria-current="page"' : ""}>${methodBadge(endpoint.method)}<span class="truncate">${escapeHtml(endpoint.summary || endpoint.path)}</span></button>`;
         }).join("")}</div></section>`;
     }).join("") || `<p class="text-sm text-muted">No matching endpoints.</p>`;
 }
