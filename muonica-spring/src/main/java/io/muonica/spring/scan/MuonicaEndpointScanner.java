@@ -1,6 +1,7 @@
 package io.muonica.spring.scan;
 
 import io.muonica.core.annotation.MuonicaDocumentation;
+import io.muonica.core.annotation.MuonicaBearerAuth;
 import io.muonica.core.annotation.MuonicaGroup;
 import io.muonica.core.annotation.MuonicaOperation;
 import io.muonica.core.annotation.MuonicaProject;
@@ -221,9 +222,20 @@ public final class MuonicaEndpointScanner implements SmartInitializingSingleton 
 
     private static List<ApiSecurityScheme> securitySchemes(Class<?> source) {
         if (source == null) return List.of();
-        return java.util.stream.Stream.of(source.getAnnotationsByType(MuonicaSecurityScheme.class)).map(annotation -> new ApiSecurityScheme(
-                annotation.name(), ApiSecurityScheme.Type.valueOf(annotation.type().name()), annotation.scheme(), annotation.bearerFormat(),
-                annotation.parameterName(), annotation.parameterLocation())).toList();
+        java.util.stream.Stream<ApiSecurityScheme> configured = java.util.stream.Stream.of(source.getAnnotationsByType(MuonicaSecurityScheme.class))
+                .map(annotation -> new ApiSecurityScheme(
+                        annotation.name(), ApiSecurityScheme.Type.valueOf(annotation.type().name()), annotation.scheme(), annotation.bearerFormat(),
+                        parameterName(annotation), annotation.parameterLocation()));
+        java.util.stream.Stream<ApiSecurityScheme> bearer = java.util.stream.Stream.of(source.getAnnotationsByType(MuonicaBearerAuth.class))
+                .map(annotation -> new ApiSecurityScheme(
+                        annotation.name(), ApiSecurityScheme.Type.HTTP, "bearer", annotation.bearerFormat(), annotation.parameterName(),
+                        io.muonica.core.model.ApiParameter.ParameterLocation.HEADER));
+        return java.util.stream.Stream.concat(configured, bearer).distinct().toList();
+    }
+
+    private static String parameterName(MuonicaSecurityScheme annotation) {
+        if (!annotation.parameterName().isBlank()) return annotation.parameterName();
+        return annotation.type() == MuonicaSecurityScheme.Type.HTTP ? "Authorization" : "X-API-Key";
     }
 
     private DocumentationResolution projectDocumentation() {

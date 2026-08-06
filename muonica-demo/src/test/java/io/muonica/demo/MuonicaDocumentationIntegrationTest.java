@@ -46,6 +46,9 @@ class MuonicaDocumentationIntegrationTest {
         assertTrue(project.groups().stream().anyMatch(group -> group.name().equals("Users")));
         assertTrue(project.groups().stream().anyMatch(group -> group.name().equals("Orders")));
         assertTrue(project.groups().stream().anyMatch(group -> group.name().equals("Reports")));
+        assertEquals("Authorization", project.securitySchemes().stream()
+                .filter(scheme -> scheme.name().equals("bearerAuth"))
+                .findFirst().orElseThrow().parameterName());
         assertTrue(project.groups().stream().flatMap(group -> group.endpoints().stream()).count() >= 16);
         assertNotNull(project.schemas().get("UserResponse"));
         assertTrue(project.schemas().get("UserResponse").properties().containsKey("role"));
