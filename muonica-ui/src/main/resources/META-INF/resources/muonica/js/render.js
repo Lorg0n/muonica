@@ -1,9 +1,9 @@
 const methodStyles = {
-    GET: "text-mint border-mint/40 bg-mint/10",
-    POST: "text-sky-400 border-sky-400/40 bg-sky-400/10",
-    PUT: "text-amber-400 border-amber-400/40 bg-amber-400/10",
-    PATCH: "text-brand border-brand/40 bg-brand/10",
-    DELETE: "text-red-400 border-red-400/40 bg-red-400/10"
+    GET: "text-mint bg-mint/10",
+    POST: "text-sky-400 bg-sky-400/10",
+    PUT: "text-amber-400 bg-amber-400/10",
+    PATCH: "text-brand bg-brand/10",
+    DELETE: "text-red-400 bg-red-400/10"
 };
 
 export const escapeHtml = (value = "") => String(value)
@@ -15,7 +15,7 @@ const copyIcon = '<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="c
 function methodBadge(method) {
     const value = (method || "API").toUpperCase();
     const style = methodStyles[value] || "text-ink-300 border-ink-700 bg-ink-800";
-    return `<span class="mono text-xs font-bold tracking-wide ${style} border rounded-md px-2.5 py-1.5 shrink-0">${escapeHtml(value)}</span>`;
+    return `<span class="mono text-xs font-bold tracking-wide ${style} rounded-md px-2.5 py-1.5 shrink-0">${escapeHtml(value)}</span>`;
 }
 
 function schemaType(schema) {
@@ -92,26 +92,42 @@ export function exampleForSchema(schema, schemas = {}, depth = 0) {
     return schema.format === "binary" ? "file.bin" : "string";
 }
 
+function responseExampleForSchema(schema, schemas = {}, depth = 0) {
+    if (!schema || depth > 7) return null;
+    if (schema.type === "array") return [responseExampleForSchema(schema.items, schemas, depth + 1)];
+    if (schema.ref) {
+        const name = schema.ref.replace(/^.*\//, "");
+        return schemas[name] ? responseExampleForSchema(schemas[name], schemas, depth + 1) : null;
+    }
+    if (schema.type === "object" || schema.properties) {
+        return Object.fromEntries(Object.entries(schema.properties || {})
+            .map(([name, child]) => [name, responseExampleForSchema(child, schemas, depth + 1)]));
+    }
+    if (["integer", "number"].includes(schema.type)) return 0;
+    if (schema.type === "boolean") return true;
+    return "hello";
+}
+
 function codePanel(endpoint, project, state = {}) {
     const content = Object.entries(endpoint.request?.content || {});
-    const [contentType, schema] = content[0] || ["application/json", null];
+    const [contentType, schema] = content[0] || [null, null];
     const defaultCode = schema ? JSON.stringify(exampleForSchema(schema, project.schemas), null, 2) : "";
     const code = state.requestBody ?? defaultCode;
     const curl = curlFor(endpoint, contentType, code, state.pathValues || {});
     const hasBody = content.length > 0;
-    const activeTab = state.activeTab === "curl" ? "curl" : "json";
+    const activeTab = state.activeTab === "curl" || !hasBody ? "curl" : "json";
     const description = endpoint.request?.description || (hasBody
         ? `Send ${contentType} data to this endpoint.`
         : "This endpoint does not define a request body.");
 
     return `<div data-code-panel="true">
         <h2 class="text-xl font-bold text-white mb-2">${hasBody ? "Request body" : "Try this endpoint"}</h2>
-        <p class="text-ink-400 mb-4">${escapeHtml(description)}${hasBody ? " Click into the code below to edit it." : " The response below is simulated locally."}</p>
+        <p class="text-ink-400 mb-4">${escapeHtml(description)}${hasBody ? " Click into the code below to edit it." : " The request is sent without a body."}</p>
 
         <div class="bg-ink-900 border border-ink-800 rounded-xl overflow-hidden">
-            ${hasBody ? `<div class="flex items-center justify-between px-4 py-2.5 border-b border-ink-800">
+            <div class="flex items-center justify-between px-4 py-2.5 border-b border-ink-800">
                 <div class="flex items-center gap-1">
-                    <button class="code-tab text-xs font-semibold px-3 py-1.5 rounded-md ${activeTab === "json" ? "bg-ink-800 text-white" : "text-ink-400 hover:text-white hover:bg-ink-800"}" data-tab="json" type="button">JSON</button>
+                    ${hasBody ? `<button class="code-tab text-xs font-semibold px-3 py-1.5 rounded-md ${activeTab === "json" ? "bg-ink-800 text-white" : "text-ink-400 hover:text-white hover:bg-ink-800"}" data-tab="json" type="button">JSON</button>` : ""}
                     <button class="code-tab text-xs font-semibold px-3 py-1.5 rounded-md ${activeTab === "curl" ? "bg-ink-800 text-white" : "text-ink-400 hover:text-white hover:bg-ink-800"}" data-tab="curl" type="button">cURL</button>
                 </div>
                 <div class="flex items-center gap-2">
@@ -120,14 +136,11 @@ function codePanel(endpoint, project, state = {}) {
                 </div>
             </div>
             <div class="overflow-x-auto code-scrollbar">
-                <pre id="code-json" contenteditable="true" spellcheck="false" data-content-type="${escapeHtml(contentType)}" class="${activeTab === "json" ? "" : "hidden "}code-editor mono text-[13px] leading-6 text-ink-200 px-4 py-4 outline-none whitespace-pre focus:bg-ink-850/40">${highlightedJson(code)}</pre>
+                ${hasBody ? `<pre id="code-json" contenteditable="true" spellcheck="false" data-content-type="${escapeHtml(contentType)}" class="${activeTab === "json" ? "" : "hidden "}code-editor mono text-[13px] leading-6 text-ink-200 px-4 py-4 outline-none whitespace-pre focus:bg-ink-850/40">${highlightedJson(code)}</pre>` : ""}
                 <pre id="code-curl" class="${activeTab === "curl" ? "" : "hidden "}code-curl mono text-[13px] leading-6 text-ink-200 px-4 py-4 whitespace-pre-wrap">${highlightedCurl(curl)}</pre>
-            </div>` : `<div class="px-4 py-5 text-sm text-ink-400">
-                <div class="flex items-center gap-2 text-mint mb-2"><span class="w-1.5 h-1.5 rounded-full bg-mint"></span> No body required</div>
-                <p>You can still run the local response simulation for this endpoint.</p>
-            </div>`}
+            </div>
             <div class="flex items-center justify-between gap-4 px-4 py-3 border-t border-ink-800 bg-ink-850/40">
-                <span class="text-[11px] text-ink-500">Nothing is actually sent — this simulates a response.</span>
+                <span class="text-[11px] text-ink-500">Requests are sent to this API.</span>
                 <button id="send-btn" class="flex items-center gap-2 bg-brand hover:bg-brand/90 disabled:opacity-60 disabled:cursor-wait text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors shrink-0" type="button">
                     <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m5 12 14 0M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
                     Send request
@@ -148,7 +161,7 @@ function codePanel(endpoint, project, state = {}) {
                 <pre id="response-body" class="mono text-[13px] leading-6 text-ink-200 px-4 py-4 whitespace-pre"></pre>
             </div>
         </div>
-        <p class="text-xs text-ink-500 mt-3">This is just a live preview — nothing is actually sent.</p>
+        <p class="text-xs text-ink-500 mt-3">The response below shows the result returned by your API.</p>
     </div>`;
 }
 
@@ -185,11 +198,19 @@ function parameterCard(parameters, heading, pathValues = {}) {
     </div>`;
 }
 
-function responseList(responses) {
+function responseList(responses, schemas = {}) {
     if (!responses?.length) return "";
     return `<div class="mt-10"><h2 class="text-xl font-bold text-white mb-4">Responses</h2><div class="space-y-3">${responses.map(response => {
         const success = /^2/.test(response.statusCode || "");
-        return `<div class="bg-ink-900 border border-ink-800 rounded-xl p-4 flex gap-4 items-center"><span class="mono font-bold ${success ? "text-mint border-mint/30 bg-mint/5" : "text-brand border-brand/30 bg-brand/5"} border px-2 py-1 rounded text-sm">${escapeHtml(response.statusCode)}</span><span class="text-sm text-ink-300">${escapeHtml(response.description || "Response")}</span></div>`;
+        const schema = Object.values(response.content || {})[0];
+        const example = schema ? JSON.stringify(responseExampleForSchema(schema, schemas), null, 2) : null;
+        return `<div class="bg-ink-900 border border-ink-800 rounded-xl overflow-hidden">
+            <div class="flex gap-4 items-center p-4 ${example ? "border-b border-ink-800" : ""}">
+                <span class="mono font-bold ${success ? "text-mint bg-mint/5" : "text-brand bg-brand/5"} px-2 py-1 rounded text-sm shrink-0">${escapeHtml(response.statusCode)}</span>
+                <span class="text-sm text-ink-300">${escapeHtml(response.description || "Response")}</span>
+            </div>
+            ${example ? `<pre class="mono text-[13px] leading-6 text-ink-200 px-4 py-4 whitespace-pre overflow-x-auto">${highlightedJson(example)}</pre>` : ""}
+        </div>`;
     }).join("")}</div></div>`;
 }
 
@@ -255,13 +276,13 @@ export function renderShell(project, selected, query, menuOpen = false, state = 
             <div class="grid grid-cols-1 xl:grid-cols-[1fr_300px] gap-10">
                 <div class="min-w-0">
                     <h2 class="text-xl font-bold text-white mb-4">Endpoint</h2>
-                    <div class="flex items-center gap-3 bg-ink-900 border border-ink-800 rounded-xl p-2 mb-10">
+                    <div class="flex items-center gap-3 bg-ink-900 rounded-xl p-2 mb-10">
                         ${methodBadge(endpoint.method)}
-                        <code id="endpoint-url" class="mono text-sm text-mint bg-mint/5 border border-mint/30 rounded-md px-3 py-1.5 flex-1 truncate">${escapeHtml(resolvePath(endpoint.path, resolvedPathValues))}</code>
+                        <code id="endpoint-url" class="mono text-sm text-ink-200 px-3 py-1.5 flex-1 truncate">${escapeHtml(resolvePath(endpoint.path, resolvedPathValues))}</code>
                         <button class="copy-code shrink-0 w-8 h-8 flex items-center justify-center rounded-md text-ink-400 hover:text-white hover:bg-ink-800 transition-colors" data-copy="${escapeHtml(resolvePath(endpoint.path, resolvedPathValues))}" aria-label="Copy endpoint" type="button">${copyIcon}</button>
                     </div>
                     ${codePanel(endpoint, project, {...state, pathValues: resolvedPathValues})}
-                    ${responseList(endpoint.responses)}
+                    ${responseList(endpoint.responses, project.schemas)}
                     ${documentationBlocks(endpoint.documentationBlocks)}
                 </div>
                 <div class="space-y-6">

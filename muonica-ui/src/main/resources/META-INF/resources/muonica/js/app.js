@@ -1,7 +1,6 @@
-import { allEndpoints, loadProject } from "./api.js";
+import { allEndpoints, loadProject, sendEndpointRequest } from "./api.js";
 import {
     escapeHtml,
-    exampleForSchema,
     highlightedCurl,
     highlightedJson,
     curlFor,
@@ -79,11 +78,11 @@ function updateCurlPreview() {
     const endpoint = selectedEndpoint();
     const editor = app.querySelector("#code-json");
     const curl = app.querySelector("#code-curl");
-    if (!endpoint || !editor || !curl) return;
+    if (!endpoint || !curl) return;
     curl.innerHTML = highlightedCurl(curlFor(
         endpoint,
-        editor.dataset.contentType,
-        editorText(editor),
+        editor?.dataset.contentType,
+        editor ? editorText(editor) : "",
         currentPathValues()
     ));
 }
@@ -114,43 +113,33 @@ function updateEndpointPreview() {
     updateCurlPreview();
 }
 
-function responseExample(endpoint, requestBody, statusCode, path) {
-    const responseContent = endpoint.responses?.find(response => response.statusCode === statusCode)?.content || {};
-    const schema = Object.values(responseContent)[0];
-    const data = schema ? exampleForSchema(schema, project.schemas) : undefined;
-    return {
-        id: path.split("/").filter(Boolean).pop() || "mock_response",
-        object: "muonica.mock_response",
-        status: /^2/.test(statusCode) ? "success" : "error",
-        status_code: Number(statusCode) || 200,
-        method: endpoint.method,
-        path,
-        request: requestBody,
-        data: data === undefined ? null : data,
-        mock: true,
-        updated_at: new Date().toISOString()
-    };
+function responseMarkup(text) {
+    if (!text.trim()) return '<span class="text-ink-500">No response body</span>';
+    try {
+        return highlightedJson(JSON.stringify(JSON.parse(text), null, 2));
+    } catch {
+        return escapeHtml(text);
+    }
 }
 
-function sendRequest() {
+async function sendRequest() {
     const endpoint = selectedEndpoint();
     const editor = app.querySelector("#code-json");
     const button = app.querySelector("#send-btn");
     const panel = app.querySelector("#response-panel");
     if (!endpoint || !button || !panel) return;
 
-    let requestBody = {};
+    let requestBody;
+    const contentType = editor?.dataset.contentType;
     if (editor) {
         if (!validateEditor()) {
             editor.focus();
             return;
         }
-        requestBody = JSON.parse(editorText(editor));
-        requestBodies.set(selectedKey, JSON.stringify(requestBody, null, 2));
+        requestBody = editorText(editor);
+        requestBodies.set(selectedKey, JSON.stringify(JSON.parse(requestBody), null, 2));
     }
 
-    const response = endpoint.responses?.[0];
-    const statusCode = response?.statusCode || "200";
     const status = app.querySelector("#response-status");
     const responseTime = app.querySelector("#response-time");
     const responseBody = app.querySelector("#response-body");
@@ -162,19 +151,33 @@ function sendRequest() {
     button.innerHTML = '<svg class="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.4" stroke-opacity=".25"/><path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg> Sending…';
     panel.classList.add("hidden");
 
-    window.setTimeout(() => {
+    try {
+        const result = await sendEndpointRequest(endpoint.method, path, requestBody, contentType);
         if (!button.isConnected) return;
-        const body = responseExample(endpoint, requestBody, statusCode, path);
-        const successful = /^2/.test(statusCode);
-        status.textContent = `${statusCode} ${successful ? "OK" : "Response"}`;
+        const successful = result.response.ok;
+        const statusCode = result.response.status;
+        status.textContent = `${statusCode} ${result.response.statusText || (successful ? "OK" : "Response")}`;
         status.className = `mono text-xs font-bold px-2 py-0.5 rounded border ${successful ? "text-mint border-mint/40 bg-mint/10" : "text-brand border-brand/40 bg-brand/10"}`;
-        responseTime.textContent = `${Math.max(1, Math.round(performance.now() - started))}ms · mock response`;
-        responseBody.innerHTML = highlightedJson(JSON.stringify(body, null, 2));
+        responseTime.textContent = `${Math.max(1, Math.round(performance.now() - started))}ms`;
+        responseBody.innerHTML = responseMarkup(result.text);
         button.disabled = false;
         button.innerHTML = original;
         panel.classList.remove("hidden");
         panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    }, 650);
+    } catch (error) {
+        if (!button.isConnected) return;
+        status.textContent = "Request failed";
+        status.className = "mono text-xs font-bold px-2 py-0.5 rounded border text-brand border-brand/40 bg-brand/10";
+        responseTime.textContent = `${Math.max(1, Math.round(performance.now() - started))}ms`;
+        responseBody.innerHTML = `<span class="text-brand">${escapeHtml(error.message || "The request could not be sent.")}</span>`;
+        panel.classList.remove("hidden");
+        panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    } finally {
+        if (button.isConnected) {
+            button.disabled = false;
+            button.innerHTML = original;
+        }
+    }
 }
 
 function attachRequestInteractions() {
@@ -245,8 +248,9 @@ function render() {
 
     app.querySelectorAll(".copy-code").forEach(button => button.addEventListener("click", () => {
         const panel = button.closest("[data-code-panel]");
+        const activeTab = activeTabs.get(selectedKey) || (panel?.querySelector("#code-json") ? "json" : "curl");
         const text = panel
-            ? (activeTabs.get(selectedKey) === "curl" ? panel.querySelector("#code-curl")?.innerText : panel.querySelector("#code-json")?.innerText) || ""
+            ? (activeTab === "curl" ? panel.querySelector("#code-curl")?.innerText : panel.querySelector("#code-json")?.innerText) || ""
             : button.dataset.copy || "";
         copyText(text, button);
     }));
