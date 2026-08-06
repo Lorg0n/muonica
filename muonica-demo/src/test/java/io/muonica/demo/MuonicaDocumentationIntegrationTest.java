@@ -44,11 +44,14 @@ class MuonicaDocumentationIntegrationTest {
 
         assertEquals("Muonica demo API", project.name());
         assertTrue(project.groups().stream().anyMatch(group -> group.name().equals("Users")));
+        assertTrue(project.groups().stream().anyMatch(group -> group.name().equals("Orders")));
+        assertTrue(project.groups().stream().anyMatch(group -> group.name().equals("Reports")));
+        assertTrue(project.groups().stream().flatMap(group -> group.endpoints().stream()).count() >= 16);
         assertNotNull(project.schemas().get("UserResponse"));
         assertTrue(project.schemas().get("UserResponse").properties().containsKey("role"));
         assertEquals("markdown", project.documentationBlocks().get(0).type());
         ApiEndpoint getUser = project.groups().stream().flatMap(group -> group.endpoints().stream())
-                .filter(endpoint -> endpoint.path().equals("/users/{id}"))
+                .filter(endpoint -> endpoint.method().equals("GET") && endpoint.path().equals("/users/{id}"))
                 .findFirst().orElseThrow();
         assertEquals(List.of("markdown", "markdown", "notice", "slot", "markdown", "notice", "slot", "markdown", "slot", "slot"),
                 getUser.documentationBlocks().stream().map(DocumentationBlock::type).toList());
