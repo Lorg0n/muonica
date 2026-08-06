@@ -5,6 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.muonica.core.model.ApiProject;
+import io.muonica.core.model.ApiEndpoint;
+import io.muonica.core.model.DocumentationBlock;
+import java.util.List;
 import io.muonica.spring.web.MuonicaDocumentationController;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -43,6 +46,19 @@ class MuonicaDocumentationIntegrationTest {
         assertTrue(project.groups().stream().anyMatch(group -> group.name().equals("Users")));
         assertNotNull(project.schemas().get("UserResponse"));
         assertTrue(project.schemas().get("UserResponse").properties().containsKey("role"));
+        assertEquals("markdown", project.documentationBlocks().get(0).type());
+        ApiEndpoint getUser = project.groups().stream().flatMap(group -> group.endpoints().stream())
+                .filter(endpoint -> endpoint.path().equals("/users/{id}"))
+                .findFirst().orElseThrow();
+        assertEquals(List.of("markdown", "markdown", "notice", "slot", "markdown", "notice", "slot", "markdown", "slot", "slot"),
+                getUser.documentationBlocks().stream().map(DocumentationBlock::type).toList());
+        assertEquals(List.of("security", "request", "responses", "parameters"),
+                getUser.documentationBlocks().stream().filter(block -> block.type().equals("slot"))
+                        .map(block -> block.attributes().get("name").toString()).toList());
+        assertTrue(getUser.documentationBlocks().stream().anyMatch(block -> block.origin().name().equals("INHERITED")));
+        assertTrue(getUser.documentationBlocks().stream().anyMatch(block -> block.type().equals("slot")
+                && block.attributes().get("name").equals("parameters")
+                && block.attributes().get("generated").equals(true)));
     }
 
     @Test

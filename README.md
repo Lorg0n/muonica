@@ -16,12 +16,37 @@ The scanner detects Spring MVC mappings, request/response DTOs, validation const
 multipart parts, standard parameter locations, Muonica documentation blocks, and Muonica
 security annotations. The OpenAPI module exports the neutral model; it is not the source of truth.
 
+## Muonica Pages
+
+Muonica Pages composes technical API metadata with Markdown resources packaged in the application JAR:
+
+```java
+@MuonicaDocumentation(file = "classpath:/muonica/users/get-user.md")
+```
+
+Supported file directives include `:::notice warning`, `:::diagram mermaid`, and technical slots such as
+`:::slot request`, `:::slot responses`, `:::slot parameters`, and `:::slot security`. Documentation is
+inherited from project to group to endpoint. Regular blocks are additive; the nearest declaration owns a
+slot. Missing technical slots are generated and appended as a fallback.
+
+Documentation resources are loaded and cached during startup. Cache invalidation is not supported in v1,
+so Markdown changes require an application restart. Resource errors are strict by default:
+
+```yaml
+muonica:
+  documentation:
+    strict: true
+```
+
+With `strict: false`, invalid sources are skipped and diagnostics are exposed as `documentationWarnings` in
+the Muonica JSON model.
+
 ## Modules
 
 - `muonica-core` — framework-independent documentation model.
 - `muonica-spring` — discovers Spring MVC handler mappings and exposes the JSON endpoint.
 - `muonica-openapi` — OpenAPI 3.1.1 export adapter.
-- `muonica-ui` — reserved home for a separate frontend.
+- `muonica-ui` — the autonomous Muonica Pages frontend and static resources.
 - `muonica-demo` — executable Spring Boot example.
 
 ## Run

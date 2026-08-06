@@ -226,9 +226,34 @@ function attachRequestInteractions() {
     app.querySelector("#send-btn")?.addEventListener("click", sendRequest);
 }
 
+function attachDiagramInteractions() {
+    app.querySelectorAll("[data-diagram-render]").forEach(button => button.addEventListener("click", async () => {
+        const container = button.closest("[data-diagram]");
+        const renderer = button.dataset.diagramRender;
+        const source = container?.querySelector(".diagram-source")?.innerText || "";
+        const output = container?.querySelector(".diagram-output");
+        const renderers = globalThis.muonicaDiagramRenderers || {};
+        const render = renderers[renderer];
+        if (typeof render !== "function" || !output) {
+            button.textContent = "Source shown below";
+            return;
+        }
+        try {
+            output.classList.remove("hidden");
+            output.innerHTML = "";
+            await render(source, output);
+            button.textContent = "Rendered";
+        } catch {
+            output.classList.add("hidden");
+            button.textContent = "Source shown below";
+        }
+    }));
+}
+
 function render() {
     app.innerHTML = renderShell(project, selectedEntry(), query, menuOpen, selectedState());
     attachRequestInteractions();
+    attachDiagramInteractions();
 
     const updateQuery = event => {
         query = event.target.value;

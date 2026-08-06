@@ -28,11 +28,11 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping("/users")
 @MuonicaGroup(name = "Users", description = "Create, read and search demo users.")
-@MuonicaDocumentation(type = MuonicaDocumentation.Type.NOTICE, content = "Demo data is reset on every restart.", noticeLevel = MuonicaDocumentation.NoticeLevel.WARNING)
+@MuonicaDocumentation(file = "classpath:/muonica/users/index.md")
 class UserController {
     @GetMapping("/{id}")
     @MuonicaOperation(summary = "Get a user", description = "Returns a user by its numeric identifier.")
-    @MuonicaDocumentation(type = MuonicaDocumentation.Type.EXAMPLE, language = "http", content = "GET /users/1\nAuthorization: Bearer <token>")
+    @MuonicaDocumentation(file = "classpath:/muonica/users/get-user.md")
     @MuonicaResponse(status = 404, description = "User was not found", body = ErrorResponse.class)
     @MuonicaSecurityRequirement("bearerAuth")
     UserResponse getUser(@PathVariable long id) {

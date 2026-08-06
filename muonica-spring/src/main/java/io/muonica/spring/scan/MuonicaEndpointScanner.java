@@ -15,7 +15,10 @@ import io.muonica.core.model.ApiRequest;
 import io.muonica.core.model.ApiResponse;
 import io.muonica.core.model.ApiSchema;
 import io.muonica.core.model.ApiSecurityScheme;
-import io.muonica.core.model.DocumentationBlock;
+import io.muonica.spring.documentation.DocumentationComposer;
+import io.muonica.spring.documentation.DocumentationFileLoader;
+import io.muonica.spring.documentation.DocumentationResolution;
+import io.muonica.spring.documentation.DocumentationResolver;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.ArrayList;
@@ -23,9 +26,11 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 import org.springframework.context.ApplicationContext;
+import org.springframework.beans.factory.SmartInitializingSingleton;
+import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.core.env.Environment;
+import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.util.ClassUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.CookieValue;
@@ -40,56 +45,77 @@ import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 /** Adapts Spring MVC handler mappings to the neutral Muonica model. */
-public final class MuonicaEndpointScanner {
+public final class MuonicaEndpointScanner implements SmartInitializingSingleton {
     private static final String MUONICA_PACKAGE = "io.muonica.spring.web";
     private final RequestMappingHandlerMapping handlerMapping;
     private final ApplicationContext applicationContext;
     private final Environment environment;
+    private final DocumentationResolver documentationResolver;
+    private final DocumentationComposer documentationComposer = new DocumentationComposer();
+    private volatile ApiProject cachedProject;
 
     public MuonicaEndpointScanner(RequestMappingHandlerMapping handlerMapping, ApplicationContext applicationContext, Environment environment) {
         this.handlerMapping = handlerMapping;
         this.applicationContext = applicationContext;
         this.environment = environment;
+        this.documentationResolver = new DocumentationResolver(new DocumentationFileLoader(applicationContext), new io.muonica.spring.documentation.DocumentationParser(), environment);
     }
 
     public ApiProject scan() {
+        ApiProject result = cachedProject;
+        if (result != null) return result;
+        synchronized (this) {
+            if (cachedProject == null) cachedProject = buildProject();
+            return cachedProject;
+        }
+    }
+
+    @Override
+    public void afterSingletonsInstantiated() {
+        scan();
+    }
+
+    private ApiProject buildProject() {
         SchemaResolver schemas = new SchemaResolver();
+        DocumentationResolution projectDocumentation = projectDocumentation();
         Map<Class<?>, List<ApiEndpoint>> endpoints = new LinkedHashMap<>();
         handlerMapping.getHandlerMethods().entrySet().stream()
                 .filter(entry -> !entry.getValue().getBeanType().getPackageName().startsWith(MUONICA_PACKAGE))
                 .sorted(Comparator.comparing(entry -> entry.getValue().getBeanType().getName()))
                 .forEach(entry -> endpoints.computeIfAbsent(entry.getValue().getBeanType(), ignored -> new ArrayList<>())
-                        .addAll(toEndpoints(entry, schemas).toList()));
+                        .addAll(toEndpoints(entry, schemas, projectDocumentation).toList()));
         List<ApiGroup> groups = endpoints.entrySet().stream().map(entry -> group(entry.getKey(), entry.getValue()))
                 .sorted(Comparator.comparing(ApiGroup::name)).toList();
-        String projectBean = applicationContext.getBeanNamesForAnnotation(MuonicaProject.class).length == 0 ? null
-                : applicationContext.getBeanNamesForAnnotation(MuonicaProject.class)[0];
-        Class<?> projectClass = projectBean == null ? null : ClassUtils.getUserClass(applicationContext.getType(projectBean));
-        MuonicaProject metadata = projectBean == null ? null : applicationContext.findAnnotationOnBean(projectBean, MuonicaProject.class);
+        MuonicaProject metadata = projectMetadata();
         String defaultName = environment.getProperty("spring.application.name", "application");
         String name = metadata != null && !metadata.title().isBlank() ? metadata.title() : defaultName;
         String version = metadata != null && !metadata.version().isBlank() ? metadata.version() : "0.0.0";
         String description = metadata != null && !metadata.description().isBlank() ? metadata.description() : null;
-        return new ApiProject(name, version, description, groups, documentation(projectClass), securitySchemes(projectClass), schemas.components());
+        return new ApiProject(name, version, description, groups, projectDocumentation.blocks(), projectDocumentation.warnings(),
+                securitySchemes(projectClass()), schemas.components());
     }
 
     private ApiGroup group(Class<?> controller, List<ApiEndpoint> endpoints) {
         MuonicaGroup annotation = controller.getAnnotation(MuonicaGroup.class);
         String name = annotation != null && !annotation.name().isBlank() ? annotation.name() : controller.getSimpleName();
         String description = annotation != null && !annotation.description().isBlank() ? annotation.description() : null;
-        return new ApiGroup(name, description, endpoints.stream().sorted(Comparator.comparing(ApiEndpoint::path).thenComparing(ApiEndpoint::method)).toList(), documentation(controller));
+        DocumentationResolution documentation = documentationResolver.resolve(controller);
+        return new ApiGroup(name, description, endpoints.stream().sorted(Comparator.comparing(ApiEndpoint::path).thenComparing(ApiEndpoint::method)).toList(),
+                documentation.blocks(), documentation.warnings());
     }
 
-    private Stream<ApiEndpoint> toEndpoints(Map.Entry<RequestMappingInfo, HandlerMethod> entry, SchemaResolver schemas) {
+    private java.util.stream.Stream<ApiEndpoint> toEndpoints(Map.Entry<RequestMappingInfo, HandlerMethod> entry, SchemaResolver schemas,
+            DocumentationResolution projectDocumentation) {
         RequestMappingInfo mapping = entry.getKey();
         HandlerMethod handler = entry.getValue();
         List<String> paths = mapping.getPatternValues().stream().sorted().toList();
         List<String> detectedMethods = mapping.getMethodsCondition().getMethods().stream().map(Enum::name).sorted().toList();
         List<String> methods = detectedMethods.isEmpty() ? List.of("ANY") : detectedMethods;
-        return paths.stream().flatMap(path -> methods.stream().map(method -> endpoint(method, path, handler, mapping, schemas)));
+        return paths.stream().flatMap(path -> methods.stream().map(method -> endpoint(method, path, handler, mapping, schemas, projectDocumentation)));
     }
 
-    private ApiEndpoint endpoint(String method, String path, HandlerMethod handler, RequestMappingInfo mapping, SchemaResolver schemas) {
+    private ApiEndpoint endpoint(String method, String path, HandlerMethod handler, RequestMappingInfo mapping, SchemaResolver schemas,
+            DocumentationResolution projectDocumentation) {
         Method javaMethod = handler.getMethod();
         MuonicaOperation operation = javaMethod.getAnnotation(MuonicaOperation.class);
         List<ApiParameter> parameters = new ArrayList<>();
@@ -112,10 +138,14 @@ public final class MuonicaEndpointScanner {
             String code = Integer.toString(response.status());
             responses.put(code, new ApiResponse(code, response.description(), response.body() == Void.class ? Map.of() : Map.of(response.contentType(), schemas.resolve(response.body()))));
         }
+        DocumentationResolution endpointDocumentation = documentationResolver.resolve(javaMethod);
+        DocumentationResolution groupDocumentation = documentationResolver.resolve(handler.getBeanType());
+        DocumentationResolution composedDocumentation = documentationComposer.compose(projectDocumentation, groupDocumentation, endpointDocumentation);
         return new ApiEndpoint(method, path, handler.getBeanType().getSimpleName(), javaMethod.getName(),
                 blankToNull(operation == null ? null : operation.summary()), blankToNull(operation == null ? null : operation.description()),
-                parameters, request, List.copyOf(responses.values()), documentation(javaMethod),
-                Stream.of(javaMethod.getAnnotationsByType(MuonicaSecurityRequirement.class)).map(MuonicaSecurityRequirement::value).toList());
+                parameters, request, List.copyOf(responses.values()), composedDocumentation.blocks(),
+                java.util.stream.Stream.of(javaMethod.getAnnotationsByType(MuonicaSecurityRequirement.class)).map(MuonicaSecurityRequirement::value).toList(),
+                composedDocumentation.warnings());
     }
 
     private ApiParameter parameter(Parameter parameter, SchemaResolver schemas) {
@@ -176,21 +206,35 @@ public final class MuonicaEndpointScanner {
 
     private static String blankToNull(String value) { return value == null || value.isBlank() ? null : value; }
 
-    private static List<DocumentationBlock> documentation(java.lang.reflect.AnnotatedElement source) {
-        if (source == null) return List.of();
-        return Stream.of(source.getAnnotationsByType(MuonicaDocumentation.class)).map(annotation -> {
-            Map<String, Object> attributes = new LinkedHashMap<>();
-            if (!annotation.title().isBlank()) attributes.put("title", annotation.title());
-            if (!annotation.language().isBlank()) attributes.put("language", annotation.language());
-            if (annotation.type() == MuonicaDocumentation.Type.NOTICE) attributes.put("level", annotation.noticeLevel().name().toLowerCase());
-            return new DocumentationBlock(annotation.type().name().toLowerCase(), annotation.content(), attributes);
-        }).toList();
-    }
-
     private static List<ApiSecurityScheme> securitySchemes(Class<?> source) {
         if (source == null) return List.of();
-        return Stream.of(source.getAnnotationsByType(MuonicaSecurityScheme.class)).map(annotation -> new ApiSecurityScheme(
+        return java.util.stream.Stream.of(source.getAnnotationsByType(MuonicaSecurityScheme.class)).map(annotation -> new ApiSecurityScheme(
                 annotation.name(), ApiSecurityScheme.Type.valueOf(annotation.type().name()), annotation.scheme(), annotation.bearerFormat(),
                 annotation.parameterName(), annotation.parameterLocation())).toList();
+    }
+
+    private DocumentationResolution projectDocumentation() {
+        return documentationResolver.resolve(projectClass());
+    }
+
+    private Class<?> projectClass() {
+        String[] projectBeans = applicationContext.getBeanNamesForAnnotation(MuonicaProject.class);
+        if (projectBeans.length > 0) return userClass(projectBeans[0]);
+        String[] documentationBeans = applicationContext.getBeanNamesForAnnotation(MuonicaDocumentation.class);
+        for (String bean : documentationBeans) {
+            Class<?> type = userClass(bean);
+            if (type != null && AnnotatedElementUtils.hasAnnotation(type, SpringBootConfiguration.class)) return type;
+        }
+        return null;
+    }
+
+    private Class<?> userClass(String beanName) {
+        Class<?> type = applicationContext.getType(beanName);
+        return type == null ? null : ClassUtils.getUserClass(type);
+    }
+
+    private MuonicaProject projectMetadata() {
+        String[] beans = applicationContext.getBeanNamesForAnnotation(MuonicaProject.class);
+        return beans.length == 0 ? null : applicationContext.findAnnotationOnBean(beans[0], MuonicaProject.class);
     }
 }

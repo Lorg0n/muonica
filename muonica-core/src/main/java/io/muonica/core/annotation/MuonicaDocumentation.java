@@ -10,8 +10,9 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Repeatable(MuonicaDocumentations.class)
 public @interface MuonicaDocumentation {
-    Type type();
-    String content();
+    Type type() default Type.MARKDOWN;
+    String content() default "";
+    String file() default "";
     String title() default "";
     String language() default "";
     NoticeLevel noticeLevel() default NoticeLevel.INFO;

@@ -220,8 +220,159 @@ function responseList(responses, schemas = {}) {
     }).join("")}</div></div>`;
 }
 
-function documentationBlocks(blocks) {
-    return (blocks || []).map(block => `<div class="mt-10 bg-ink-900 border border-ink-800 rounded-xl p-5"><p class="text-[11px] font-semibold tracking-wider text-ink-500 uppercase mb-3">${escapeHtml(block.type)}</p><pre class="whitespace-pre-wrap text-sm text-ink-300 font-sans leading-relaxed">${escapeHtml(block.content)}</pre></div>`).join("");
+function markdownInline(value) {
+    let result = escapeHtml(value);
+    result = result.replace(/`([^`]+)`/g, '<code class="mono text-brand bg-ink-850 rounded px-1.5 py-0.5 text-[.9em]">$1</code>');
+    result = result.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+    result = result.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+    result = result.replace(/\[([^\]]+)\]\(((?:https?:\/\/|\/|\.|#)[^\s)]+)\)/g,
+        '<a class="text-brand hover:underline" href="$2" target="_blank" rel="noreferrer">$1</a>');
+    return result;
+}
+
+export function renderMarkdown(markdown = "") {
+    const lines = String(markdown).replaceAll("\r\n", "\n").split("\n");
+    const output = [];
+    let listType = null;
+    let inCode = false;
+    let codeLanguage = "";
+    let codeLines = [];
+    let codeFence = null;
+
+    const closeList = () => {
+        if (listType) {
+            output.push(`</${listType}>`);
+            listType = null;
+        }
+    };
+    const closeCode = () => {
+        if (inCode) {
+            output.push(`<pre class="mt-3 overflow-x-auto rounded-lg bg-ink-950 border border-ink-800 p-4 mono text-[13px] leading-6 text-ink-200"><code data-language="${escapeHtml(codeLanguage)}">${escapeHtml(codeLines.join("\n"))}</code></pre>`);
+            inCode = false;
+            codeLanguage = "";
+            codeLines = [];
+            codeFence = null;
+        }
+    };
+
+    for (const line of lines) {
+        const fence = line.match(/^\s*(`{3,}|~{3,})\s*([\w-]*)\s*$/);
+        if (fence) {
+            closeList();
+            if (inCode && fence[1][0] === codeFence[0] && fence[1].length >= codeFence.length) closeCode();
+            else if (inCode) codeLines.push(line);
+            else {
+                inCode = true;
+                codeFence = fence[1];
+                codeLanguage = fence[2] || "";
+            }
+            continue;
+        }
+        if (inCode) {
+            codeLines.push(line);
+            continue;
+        }
+        const heading = line.match(/^\s*(#{1,6})\s+(.+?)\s*#*\s*$/);
+        if (heading) {
+            closeList();
+            const level = heading[1].length;
+            const styles = {1: "text-3xl", 2: "text-2xl", 3: "text-xl", 4: "text-lg", 5: "text-base", 6: "text-sm"};
+            output.push(`<h${level} class="${styles[level]} font-bold text-white ${level === 1 ? "mb-4" : "mt-6 mb-3"}">${markdownInline(heading[2])}</h${level}>`);
+            continue;
+        }
+        const unordered = line.match(/^\s*[-*]\s+(.+)$/);
+        const ordered = line.match(/^\s*\d+\.\s+(.+)$/);
+        if (unordered || ordered) {
+            const nextList = ordered ? "ol" : "ul";
+            if (listType !== nextList) {
+                closeList();
+                listType = nextList;
+                output.push(`<${listType} class="${listType === "ol" ? "list-decimal" : "list-disc"} pl-6 space-y-1 text-ink-300">`);
+            }
+            output.push(`<li>${markdownInline((unordered || ordered)[1])}</li>`);
+            continue;
+        }
+        if (!line.trim()) {
+            closeList();
+            continue;
+        }
+        closeList();
+        output.push(`<p class="text-ink-300 leading-relaxed">${markdownInline(line)}</p>`);
+    }
+    closeList();
+    closeCode();
+    return output.join("");
+}
+
+function originLabel(block) {
+    if (block.origin === "GENERATED") return "auto-generated";
+    if (block.origin === "INHERITED") return "inherited";
+    return "documented";
+}
+
+function blockSource(block) {
+    const source = block.attributes?.source;
+    const line = block.attributes?.line;
+    return source ? `<span class="text-[10px] text-ink-500">${escapeHtml(source.split("/").pop())}${line ? `:${escapeHtml(line)}` : ""}</span>` : "";
+}
+
+function noticeBlock(block) {
+    const level = block.attributes?.level || "info";
+    const styles = {
+        info: "border-sky-400/30 bg-sky-400/5 text-sky-200",
+        warning: "border-amber-400/30 bg-amber-400/5 text-amber-200",
+        danger: "border-red-400/30 bg-red-400/5 text-red-200"
+    };
+    return `<aside class="mt-10 rounded-xl border p-5 ${styles[level] || styles.info}"><p class="text-[11px] font-bold uppercase tracking-wider mb-2">${escapeHtml(level)}</p><div class="leading-relaxed">${renderMarkdown(block.content)}</div></aside>`;
+}
+
+function diagramBlock(block) {
+    const renderer = block.attributes?.renderer || "unknown";
+    return `<section class="mt-10 bg-ink-900 border border-ink-800 rounded-xl overflow-hidden" data-diagram="${escapeHtml(renderer)}">
+        <div class="flex items-center justify-between gap-4 px-5 py-3 border-b border-ink-800"><div><h2 class="text-lg font-bold text-white">Diagram</h2><p class="text-[11px] text-ink-500 uppercase tracking-wider">${escapeHtml(renderer)}</p></div><button data-diagram-render="${escapeHtml(renderer)}" class="text-xs font-semibold text-brand hover:text-white border border-ink-700 hover:border-brand rounded-md px-3 py-1.5 transition-colors" type="button">Render diagram</button></div>
+        <pre class="diagram-source mono text-[13px] leading-6 text-ink-200 px-5 py-4 overflow-x-auto whitespace-pre-wrap">${escapeHtml(block.content)}</pre>
+        <div class="diagram-output hidden border-t border-ink-800 p-5"></div>
+    </section>`;
+}
+
+function securitySection(endpoint, project, block) {
+    const requirements = endpoint.securityRequirements || [];
+    if (!requirements.length && block.origin === "GENERATED") return "";
+    const schemes = Object.fromEntries((project.securitySchemes || []).map(scheme => [scheme.name, scheme]));
+    return `<section class="mt-10 bg-ink-900 border border-ink-800 rounded-xl p-5"><div class="flex items-center justify-between gap-3 mb-4"><h2 class="text-xl font-bold text-white">Authentication</h2><span class="text-[11px] uppercase tracking-wider text-ink-500">${escapeHtml(originLabel(block))}</span></div>
+        ${requirements.length ? `<div class="space-y-3">${requirements.map(name => {
+            const scheme = schemes[name];
+            const details = scheme ? [scheme.type, scheme.scheme, scheme.bearerFormat].filter(Boolean).join(" · ") : "Security requirement";
+            return `<div class="rounded-lg border border-ink-800 bg-ink-850/40 p-4"><p class="mono text-sm text-white">${escapeHtml(name)}</p><p class="text-xs text-ink-400 mt-1">${escapeHtml(details)}</p></div>`;
+        }).join("")}</div>` : `<p class="text-ink-400">No authentication is required for this operation.</p>`}
+    </section>`;
+}
+
+function parametersSection(endpoint, pathValues, block) {
+    const pathParameters = (endpoint.parameters || []).filter(parameter => parameter.location === "PATH");
+    const otherParameters = (endpoint.parameters || []).filter(parameter => parameter.location !== "PATH");
+    if (!pathParameters.length && !otherParameters.length) return "";
+    return `<section class="mt-10"><div class="flex items-center justify-between gap-3 mb-4"><h2 class="text-xl font-bold text-white">Parameters</h2><span class="text-[11px] uppercase tracking-wider text-ink-500">${escapeHtml(originLabel(block))}</span></div><div class="space-y-6">${parameterCard(pathParameters, "Path parameters", pathValues)}${parameterCard(otherParameters, "Query and header parameters")}</div></section>`;
+}
+
+function genericDocumentationBlock(block) {
+    return `<section class="mt-10 bg-ink-900 border border-ink-800 rounded-xl p-5"><div class="flex items-center justify-between gap-3 mb-3"><p class="text-[11px] font-semibold tracking-wider text-ink-500 uppercase">${escapeHtml(block.type)}</p>${blockSource(block)}</div><pre class="whitespace-pre-wrap text-sm text-ink-300 font-sans leading-relaxed">${escapeHtml(block.content)}</pre></section>`;
+}
+
+export function documentationBlocks(blocks, endpoint, project, state = {}) {
+    return (blocks || []).map(block => {
+        if (block.type === "markdown") return `<section class="mt-10 prose-documentation">${renderMarkdown(block.content)}${blockSource(block)}</section>`;
+        if (block.type === "notice") return noticeBlock(block);
+        if (block.type === "diagram") return diagramBlock(block);
+        if (block.type === "slot") {
+            const name = block.attributes?.name;
+            if (name === "request") return `<section class="mt-10">${codePanel(endpoint, project, {...state, pathValues: state.pathValues})}</section>`;
+            if (name === "responses") return responseList(endpoint.responses, project.schemas);
+            if (name === "parameters") return parametersSection(endpoint, state.pathValues || {}, block);
+            if (name === "security") return securitySection(endpoint, project, block);
+        }
+        return genericDocumentationBlock(block);
+    }).join("");
 }
 
 export function renderShell(project, selected, query, menuOpen = false, state = {}) {
@@ -287,13 +438,9 @@ export function renderShell(project, selected, query, menuOpen = false, state = 
                         <code id="endpoint-url" class="mono text-sm text-ink-200 px-3 py-1.5 flex-1 truncate">${escapeHtml(resolvePath(endpoint.path, resolvedPathValues))}</code>
                         <button class="copy-code shrink-0 w-8 h-8 flex items-center justify-center rounded-md text-ink-400 hover:text-white hover:bg-ink-800 transition-colors" data-copy="${escapeHtml(resolvePath(endpoint.path, resolvedPathValues))}" aria-label="Copy endpoint" type="button">${copyIcon}</button>
                     </div>
-                    ${codePanel(endpoint, project, {...state, pathValues: resolvedPathValues})}
-                    ${responseList(endpoint.responses, project.schemas)}
-                    ${documentationBlocks(endpoint.documentationBlocks)}
+                    ${documentationBlocks(endpoint.documentationBlocks, endpoint, project, {...state, pathValues: resolvedPathValues})}
                 </div>
                 <div class="space-y-6">
-                    ${parameterCard(pathParameters, "Path parameters", resolvedPathValues)}
-                    ${parameterCard(otherParameters, "Parameters")}
                     <div class="bg-ink-900 border border-ink-800 rounded-xl p-5">
                         <h3 class="text-white font-bold mb-1.5">Need help?</h3>
                         <p class="text-xs text-ink-400 leading-relaxed">Explore the <a class="text-brand font-medium hover:underline" href="./openapi.json">API reference</a> or contact developer support →</p>
