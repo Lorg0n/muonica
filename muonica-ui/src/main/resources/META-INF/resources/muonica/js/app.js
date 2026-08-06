@@ -1,4 +1,11 @@
-import { allEndpoints, loadProject, sendEndpointRequest } from "./api.js";
+import {
+    allEndpoints,
+    clearAuthorization,
+    loadAuthorization,
+    loadProject,
+    saveAuthorization,
+    sendEndpointRequest
+} from "./api.js";
 import {
     escapeHtml,
     highlightedCurl,
@@ -13,6 +20,8 @@ let project;
 let selectedKey;
 let query = "";
 let menuOpen = false;
+let authorizationModalOpen = false;
+let authorization = loadAuthorization();
 const requestBodies = new Map();
 const pathValues = new Map();
 const activeTabs = new Map();
@@ -29,7 +38,9 @@ function selectedState() {
     return {
         requestBody: requestBodies.get(selectedKey),
         pathValues: pathValues.get(selectedKey),
-        activeTab: activeTabs.get(selectedKey) || "json"
+        activeTab: activeTabs.get(selectedKey) || "json",
+        authorization,
+        authorizationModalOpen
     };
 }
 
@@ -87,7 +98,8 @@ function updateCurlPreview() {
         endpoint,
         editor?.dataset.contentType,
         editor ? editorText(editor) : "",
-        currentPathValues()
+        currentPathValues(),
+        project
     ));
 }
 
@@ -156,7 +168,7 @@ async function sendRequest() {
     panel.classList.remove("hidden");
 
     try {
-        const result = await sendEndpointRequest(endpoint.method, path, requestBody, contentType);
+        const result = await sendEndpointRequest(endpoint.method, path, requestBody, contentType, endpoint, project, authorization);
         if (!button.isConnected) return;
         const successful = result.response.ok;
         const statusCode = result.response.status;
@@ -251,15 +263,66 @@ function attachDiagramInteractions() {
     }));
 }
 
+function attachAuthorizationInteractions() {
+    app.querySelector("#authorize-btn")?.addEventListener("click", () => {
+        authorizationModalOpen = true;
+        render();
+        app.querySelector("[data-auth-scheme]")?.focus();
+    });
+    app.querySelector("#auth-close")?.addEventListener("click", () => {
+        authorizationModalOpen = false;
+        render();
+    });
+    app.querySelector("#auth-cancel")?.addEventListener("click", () => {
+        authorizationModalOpen = false;
+        render();
+    });
+    app.querySelector("[data-auth-backdrop]")?.addEventListener("click", event => {
+        if (event.target !== event.currentTarget) return;
+        authorizationModalOpen = false;
+        render();
+    });
+    app.querySelector("#authorization-form")?.addEventListener("submit", event => {
+        event.preventDefault();
+        const values = {};
+        app.querySelectorAll("[data-auth-scheme]").forEach(input => {
+            values[input.dataset.authScheme] = input.value;
+        });
+        authorization = saveAuthorization(values);
+        authorizationModalOpen = false;
+        render();
+    });
+    app.querySelector("#clear-authorization")?.addEventListener("click", () => {
+        authorization = clearAuthorization();
+        render();
+        app.querySelector("[data-auth-scheme]")?.focus();
+    });
+    app.querySelectorAll("[data-auth-toggle]").forEach(button => button.addEventListener("click", () => {
+        const input = app.querySelector(`#${button.dataset.authToggle}`);
+        if (!input) return;
+        const visible = input.type === "text";
+        input.type = visible ? "password" : "text";
+        button.textContent = visible ? "Show" : "Hide";
+    }));
+}
+
 function render() {
     app.innerHTML = renderShell(project, selectedEntry(), query, menuOpen, selectedState());
     attachRequestInteractions();
     attachDiagramInteractions();
+    attachAuthorizationInteractions();
 
     const updateQuery = event => {
+        const input = event.target;
+        const selectionStart = input.selectionStart;
+        const selectionEnd = input.selectionEnd;
         query = event.target.value;
         render();
-        app.querySelector(menuOpen ? "#mobile-search" : "#search")?.focus();
+        const replacement = app.querySelector(menuOpen ? "#mobile-search" : "#search");
+        replacement?.focus();
+        if (replacement && selectionStart !== null && selectionEnd !== null) {
+            replacement.setSelectionRange(selectionStart, selectionEnd);
+        }
     };
 
     app.querySelector("#search")?.addEventListener("input", updateQuery);
@@ -290,6 +353,11 @@ function render() {
 }
 
 window.addEventListener("keydown", event => {
+    if (event.key === "Escape" && authorizationModalOpen) {
+        authorizationModalOpen = false;
+        render();
+        return;
+    }
     if (event.key === "Escape" && menuOpen) {
         menuOpen = false;
         render();

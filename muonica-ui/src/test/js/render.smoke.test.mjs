@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { renderMarkdown, renderShell } from "../../main/resources/META-INF/resources/muonica/js/render.js";
+import {
+    authorizationForEndpoint,
+    clearAuthorization,
+    loadAuthorization,
+    normalizeBearerToken,
+    saveAuthorization
+} from "../../main/resources/META-INF/resources/muonica/js/api.js";
+import { curlFor, renderMarkdown, renderShell } from "../../main/resources/META-INF/resources/muonica/js/render.js";
 
 const project = {
     name: "Muonica demo",
@@ -85,6 +92,60 @@ test("renders an endpoint as an article flow", () => {
     const mobileHtml = renderShell(project, selected, "user", true);
     assert.match(mobileHtml, /id="mobile-search"/);
     assert.match(mobileHtml, /aria-expanded="true"/);
+});
+
+test("renders global authorization controls without exposing credentials in curl", () => {
+    const selected = { group: project.groups[0], endpoint: project.groups[0].endpoints[0], key: "0:0" };
+    const html = renderShell(project, selected, "", false, {
+        authorization: { bearerAuth: "secret-token" },
+        authorizationModalOpen: true
+    });
+
+    assert.match(html, /id="authorize-btn"/);
+    assert.match(html, /Authorized · 1\/1/);
+    assert.match(html, /id="authorization-form"/);
+    assert.match(html, /value="secret-token"/);
+    assert.doesNotMatch(html, /aria-label="Account"/);
+    const curl = curlFor(project.groups[0].endpoints[0], "application/json", "", { id: "1" }, project);
+    assert.match(curl, /MUONICA_BEARERAUTH/);
+    assert.doesNotMatch(curl, /secret-token/);
+});
+
+test("builds matching authorization headers and query parameters", () => {
+    const securedEndpoint = {
+        path: "/users",
+        securityRequirements: ["bearerAuth", "apiKey"]
+    };
+    const securedProject = {
+        securitySchemes: [
+            { name: "bearerAuth", type: "HTTP", scheme: "bearer", parameterName: "Authorization", parameterLocation: "HEADER" },
+            { name: "apiKey", type: "API_KEY", parameterName: "key", parameterLocation: "QUERY" }
+        ]
+    };
+
+    assert.equal(normalizeBearerToken(" Bearer abc123 "), "abc123");
+    assert.deepEqual(authorizationForEndpoint(securedEndpoint, securedProject, {
+        bearerAuth: "Bearer abc123",
+        apiKey: "key-value"
+    }, "/users/1"), {
+        path: "/users/1?key=key-value",
+        headers: { Authorization: "Bearer abc123" },
+        cookies: []
+    });
+});
+
+test("persists only non-empty authorization values", () => {
+    const values = new Map();
+    const storage = {
+        getItem: key => values.get(key) || null,
+        setItem: (key, value) => values.set(key, value),
+        removeItem: key => values.delete(key)
+    };
+
+    assert.deepEqual(saveAuthorization({ bearerAuth: " token ", empty: "" }, storage), { bearerAuth: "token" });
+    assert.deepEqual(loadAuthorization(storage), { bearerAuth: "token" });
+    assert.deepEqual(clearAuthorization(storage), {});
+    assert.deepEqual(loadAuthorization(storage), {});
 });
 
 test("keeps sparse endpoints calm", () => {

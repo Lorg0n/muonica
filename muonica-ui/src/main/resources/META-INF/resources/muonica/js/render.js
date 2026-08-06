@@ -44,18 +44,45 @@ export function resolvePath(path, pathValues = {}) {
     });
 }
 
-export function curlFor(endpoint, contentType, body, pathValues = {}) {
-    const path = resolvePath(endpoint.path, pathValues);
-    const lines = [
-        `curl -X ${endpoint.method} https://api.muonica.dev${path} \\`,
-        "  -H \"Authorization: Bearer $MUONICA_API_KEY\" \\"
-    ];
-    if (contentType) lines.push(`  -H \"Content-Type: ${contentType}\" \\`);
+function authPlaceholder(scheme) {
+    const value = `${scheme?.name || "AUTH"}`.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "");
+    return `$MUONICA_${value || "AUTH_VALUE"}`;
+}
+
+function authCurlValue(scheme) {
+    const placeholder = authPlaceholder(scheme);
+    return String(scheme?.type || "").toUpperCase() === "HTTP" && String(scheme?.scheme || "").toLowerCase() === "bearer"
+        ? `Bearer ${placeholder}`
+        : String(scheme?.type || "").toUpperCase() === "HTTP" && scheme?.scheme
+            ? `${scheme.scheme} ${placeholder}`
+            : placeholder;
+}
+
+export function curlFor(endpoint, contentType, body, pathValues = {}, project = {}) {
+    let path = resolvePath(endpoint.path, pathValues);
+    const schemes = Object.fromEntries((project.securitySchemes || []).map(scheme => [scheme.name, scheme]));
+    const lines = [`curl -X ${endpoint.method} https://api.muonica.dev${path}`];
+    (endpoint.securityRequirements || []).forEach(name => {
+        const scheme = schemes[name];
+        if (!scheme) return;
+        const parameterName = scheme.parameterName || "Authorization";
+        const location = String(scheme.parameterLocation || "HEADER").toUpperCase();
+        const value = authCurlValue(scheme);
+        if (location === "QUERY") {
+            path += `${path.includes("?") ? "&" : "?"}${encodeURIComponent(parameterName)}=${value}`;
+            lines[0] = `curl -X ${endpoint.method} https://api.muonica.dev${path}`;
+        } else if (location !== "COOKIE") {
+            lines.push(`  -H \"${parameterName}: ${value}\"`);
+        } else {
+            lines.push(`  -b \"${parameterName}=${value}\"`);
+        }
+    });
+    if (contentType) lines.push(`  -H \"Content-Type: ${contentType}\"`);
     if (body !== undefined && body !== "") {
         const indented = body.split("\n").map(line => `  ${line}`).join("\n");
         lines.push(`  -d '${indented}'`);
     }
-    return lines.join("\n");
+    return lines.map((line, index) => index === lines.length - 1 ? line : `${line} \\`).join("\n");
 }
 
 export function highlightedJson(code) {
@@ -127,8 +154,9 @@ function codePanel(endpoint, project, state = {}) {
     const [contentType, schema] = content[0] || [null, null];
     const defaultCode = schema ? JSON.stringify(exampleForSchema(schema, project.schemas), null, 2) : "";
     const code = state.requestBody ?? defaultCode;
-    const curl = curlFor(endpoint, contentType, code, state.pathValues || {});
+    const curl = curlFor(endpoint, contentType, code, state.pathValues || {}, project);
     const hasBody = content.length > 0;
+    const protectedEndpoint = (endpoint.securityRequirements || []).length > 0;
     const activeTab = state.activeTab === "curl" || !hasBody ? "curl" : "json";
     const description = endpoint.request?.description || (hasBody
         ? `Send ${contentType} data to this endpoint.`
@@ -157,7 +185,7 @@ function codePanel(endpoint, project, state = {}) {
                 <pre id="code-curl" class="${activeTab === "curl" ? "" : "hidden "}code-curl mono text-[13px] leading-6 text-ink-200 px-4 py-4 whitespace-pre-wrap">${highlightedCurl(curl)}</pre>
             </div>
             <div class="panel-footer">
-                <span class="text-[11px] text-ink-500">Requests are sent to this API.</span>
+                <span class="text-[11px] text-ink-500">${protectedEndpoint ? "Saved authorization is applied automatically." : "Requests are sent to this API."}</span>
                 <button id="send-btn" class="send-button flex items-center gap-2 disabled:opacity-60 disabled:cursor-wait text-xs font-semibold px-4 py-2 rounded-lg transition-colors shrink-0" type="button">
                     <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m5 12 14 0M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
                     Send request
@@ -351,16 +379,18 @@ function diagramBlock(block) {
     </section>`;
 }
 
-function securitySection(endpoint, project, block) {
+function securitySection(endpoint, project, block, authorization = {}) {
     const requirements = endpoint.securityRequirements || [];
     if (!requirements.length && block.origin === "GENERATED") return "";
     const schemes = Object.fromEntries((project.securitySchemes || []).map(scheme => [scheme.name, scheme]));
-    return `<section class="section-block"><div class="section-heading"><h2 class="section-title">Authentication</h2><span class="section-meta">${escapeHtml(originLabel(block))}</span></div>
+    const configured = requirements.filter(name => authorization[name]).length;
+    return `<section class="section-block"><div class="section-heading"><h2 class="section-title">Authentication</h2><span class="section-meta">${requirements.length ? `${configured}/${requirements.length} configured` : escapeHtml(originLabel(block))}</span></div>
         <div class="auth-surface content-surface">${requirements.length ? `<div>${requirements.map(name => {
             const scheme = schemes[name];
             const details = scheme ? [scheme.type, scheme.scheme, scheme.bearerFormat].filter(Boolean).join(" · ") : "Security requirement";
             const placement = scheme?.parameterName ? `${scheme.parameterName}${scheme.parameterLocation ? ` · ${String(scheme.parameterLocation).toLowerCase()}` : ""}` : "Operation security requirement";
-            return `<div class="auth-row"><div><p class="auth-name">${escapeHtml(name)}</p><p class="auth-details">${escapeHtml(details)}</p></div><div class="text-right"><p class="auth-label">${escapeHtml(placement)}</p><p class="mt-1 text-xs text-mint">required</p></div></div>`;
+            const status = authorization[name] ? "configured" : "not configured";
+            return `<div class="auth-row"><div><p class="auth-name">${escapeHtml(name)}</p><p class="auth-details">${escapeHtml(details)}</p></div><div class="text-right"><p class="auth-label">${escapeHtml(placement)}</p><p class="auth-status ${authorization[name] ? "auth-status-ready" : "auth-status-missing"}">${status}</p></div></div>`;
         }).join("")}</div>` : `<p class="text-sm text-ink-400">No authentication is required for this operation.</p>`}</div>
     </section>`;
 }
@@ -386,7 +416,7 @@ export function documentationBlocks(blocks, endpoint, project, state = {}) {
             if (name === "request") return `<section class="section-block">${codePanel(endpoint, project, {...state, pathValues: state.pathValues})}</section>`;
             if (name === "responses") return responseList(endpoint.responses, project.schemas);
             if (name === "parameters") return parametersSection(endpoint, block);
-            if (name === "security") return securitySection(endpoint, project, block);
+            if (name === "security") return securitySection(endpoint, project, block, state.authorization);
         }
         return genericDocumentationBlock(block);
     };
@@ -399,6 +429,45 @@ export function documentationBlocks(blocks, endpoint, project, state = {}) {
     return [...authored, ...orderedSlots, ...diagrams].map(rendered).join("");
 }
 
+function authorizationFieldLabel(scheme) {
+    if (String(scheme.type || "").toUpperCase() === "HTTP" && String(scheme.scheme || "").toLowerCase() === "bearer") {
+        return "Bearer token";
+    }
+    if (String(scheme.type || "").toUpperCase() === "API_KEY") return "API key";
+    return `${scheme.name} value`;
+}
+
+function authorizationSchemeDetails(scheme) {
+    const type = String(scheme.type || "").toUpperCase() === "API_KEY" ? "API key" : String(scheme.scheme || scheme.type || "HTTP");
+    const location = String(scheme.parameterLocation || "HEADER").toLowerCase();
+    return `${type} · ${scheme.parameterName || "Authorization"} in ${location}`;
+}
+
+function authorizationModal(project, state = {}) {
+    const schemes = project.securitySchemes || [];
+    if (!state.authorizationModalOpen || !schemes.length) return "";
+    const values = state.authorization || {};
+    const configured = schemes.filter(scheme => values[scheme.name]).length;
+    return `<div id="auth-modal" class="auth-modal-backdrop" role="presentation" data-auth-backdrop>
+        <section class="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
+            <div class="auth-modal-header">
+                <div><p class="eyebrow mb-2">Request authorization</p><h2 id="auth-modal-title" class="text-xl font-bold text-white">Authorize API requests</h2></div>
+                <button id="auth-close" class="auth-close" type="button" aria-label="Close authorization dialog">×</button>
+            </div>
+            <p class="auth-modal-intro">Credentials stay in this browser and are added only to requests for the matching protected schemes.</p>
+            <form id="authorization-form" class="auth-form">
+                ${schemes.map((scheme, index) => `<div class="auth-field">
+                    <div class="auth-field-heading"><label for="auth-value-${index}">${escapeHtml(authorizationFieldLabel(scheme))}</label><span class="section-meta">${escapeHtml(scheme.name)}</span></div>
+                    <div class="auth-input-wrap"><input id="auth-value-${index}" data-auth-scheme="${escapeHtml(scheme.name)}" class="auth-input" type="password" value="${escapeHtml(values[scheme.name] || "")}" placeholder="Enter ${escapeHtml(authorizationFieldLabel(scheme).toLowerCase())}" autocomplete="off" spellcheck="false"><button class="auth-toggle" data-auth-toggle="auth-value-${index}" type="button">Show</button></div>
+                    <p class="auth-field-help">${escapeHtml(authorizationSchemeDetails(scheme))}</p>
+                </div>`).join("")}
+                <p class="auth-security-note">${configured ? `${configured} of ${schemes.length} scheme${schemes.length === 1 ? "" : "s"} configured.` : "No credentials configured yet."} Values are stored with browser local storage.</p>
+                <div class="auth-modal-actions"><button id="clear-authorization" class="auth-clear" type="button" ${configured ? "" : "disabled"}>Clear all</button><div class="flex items-center gap-2"><button id="auth-cancel" class="auth-cancel" type="button">Cancel</button><button class="send-button auth-save" type="submit">Save authorization</button></div></div>
+            </form>
+        </section>
+    </div>`;
+}
+
 export function renderShell(project, selected, query, menuOpen = false, state = {}) {
     const groups = project.groups || [];
     const endpoint = selected?.endpoint;
@@ -408,6 +477,10 @@ export function renderShell(project, selected, query, menuOpen = false, state = 
     const resolvedPathValues = state.pathValues || Object.fromEntries(pathParameters.map(parameter => [parameter.name, defaultPathValue(parameter)]));
     const resolvedPath = endpoint ? resolvePath(endpoint.path, resolvedPathValues) : "";
     const responses = endpoint?.responses || [];
+
+    const schemes = project.securitySchemes || [];
+    const configuredSchemes = schemes.filter(scheme => state.authorization?.[scheme.name]).length;
+    const authorizationLabel = configuredSchemes ? `Authorized · ${configuredSchemes}/${schemes.length}` : "Authorize";
 
     return `<header class="doc-header sticky top-0 z-30 flex items-center justify-between h-16 px-4 lg:px-6 border-b backdrop-blur">
         <div class="flex items-center gap-3">
@@ -422,7 +495,7 @@ export function renderShell(project, selected, query, menuOpen = false, state = 
         <div class="hidden md:flex items-center flex-1 max-w-md mx-8">
             <label class="flex items-center gap-2 w-full bg-ink-900 border border-ink-800 rounded-lg px-3 py-2 text-ink-400 hover:border-ink-600 transition-colors cursor-text">
                 <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3" stroke-linecap="round"/></svg>
-                <input id="search" class="w-full bg-transparent text-sm outline-none placeholder:text-ink-500 text-white" placeholder="Search documentation" value="${escapeHtml(query)}" autocomplete="off">
+                <input id="search" class="docs-search-input w-full bg-transparent text-sm outline-none placeholder:text-ink-500 text-white" dir="ltr" placeholder="Search documentation" value="${escapeHtml(query)}" autocomplete="off">
                 <kbd class="ml-auto text-[10px] text-ink-500 border border-ink-700 rounded px-1.5 py-0.5">⌘K</kbd>
             </label>
         </div>
@@ -430,19 +503,18 @@ export function renderShell(project, selected, query, menuOpen = false, state = 
         <div class="flex items-center gap-3 lg:gap-5 text-sm text-ink-300">
             <span class="hidden sm:inline text-ink-400">v${escapeHtml(project.version || "1.0")}</span>
             <span class="hidden sm:inline w-1.5 h-1.5 rounded-full bg-ink-600"></span>
-            <span class="hidden sm:inline">API key</span>
-            <button class="w-8 h-8 rounded-full bg-ink-800 border border-ink-700 flex items-center justify-center text-ink-300 hover:border-ink-500 transition-colors" aria-label="Account" type="button">
-                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6" stroke-linecap="round"/></svg>
-            </button>
+            ${schemes.length ? `<button id="authorize-btn" class="authorize-button ${configuredSchemes ? "authorize-button-ready" : ""}" type="button" aria-haspopup="dialog" aria-expanded="${Boolean(state.authorizationModalOpen)}">${escapeHtml(authorizationLabel)}</button>` : ""}
         </div>
     </header>
     ${menuOpen ? `<div class="fixed inset-x-0 top-16 z-30 max-h-[calc(100vh-64px)] overflow-y-auto border-b border-ink-800 bg-ink-950 p-6 lg:hidden">
         <label class="flex items-center gap-2 w-full bg-ink-900 border border-ink-800 rounded-lg px-3 py-2 text-ink-400 mb-6">
             <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3" stroke-linecap="round"/></svg>
-            <input id="mobile-search" class="w-full bg-transparent text-sm outline-none placeholder:text-ink-500 text-white" placeholder="Search documentation" value="${escapeHtml(query)}" autocomplete="off">
+            <input id="mobile-search" class="docs-search-input w-full bg-transparent text-sm outline-none placeholder:text-ink-500 text-white" dir="ltr" placeholder="Search documentation" value="${escapeHtml(query)}" autocomplete="off">
         </label>
         <nav aria-label="API navigation">${renderNavigation(groups, selected?.key, query)}</nav>
     </div>` : ""}
+
+    ${authorizationModal(project, state)}
 
     <div class="flex">
         <aside class="hidden lg:block doc-nav w-64 shrink-0 border-r border-ink-800 h-[calc(100vh-64px)] sticky top-16 overflow-y-auto px-5 py-8">
