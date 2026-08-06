@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.muonica.core.model.ApiProject;
 import io.muonica.spring.web.MuonicaDocumentationController;
 import java.util.Map;
+import org.springframework.core.io.ClassPathResource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -27,12 +28,18 @@ class MuonicaDocumentationIntegrationTest {
     }
 
     @Test
-    void exportsOpenApiAndServesLandingPage() {
+    void exportsOpenApiAndServesDocumentationUi() throws Exception {
         Map<String, Object> document = documentationController.openapi();
 
         assertEquals("3.1.1", document.get("openapi"));
         assertTrue(((Map<?, ?>) document.get("paths")).containsKey("/users/{id}"));
         assertTrue(((Map<?, ?>) document.get("components")).containsKey("securitySchemes"));
         assertEquals("redirect:/muonica/index.html", documentationController.home());
+
+        ClassPathResource ui = new ClassPathResource("META-INF/resources/muonica/index.html");
+        assertTrue(ui.exists());
+        String html = new String(ui.getInputStream().readAllBytes());
+        assertTrue(html.contains("tailwindcss.com"));
+        assertTrue(html.contains("./js/app.js"));
     }
 }
