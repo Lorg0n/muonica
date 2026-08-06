@@ -17,8 +17,7 @@ public final class MuonicaDocumentationController {
 
     @GetMapping(value = "/muonica", produces = MediaType.TEXT_HTML_VALUE)
     public String home() {
-        return "<!doctype html><html><head><title>Muonica</title></head><body><h1>Muonica</h1>"
-                + "<ul><li><a href=\"/muonica/api\">Muonica JSON</a></li><li><a href=\"/muonica/openapi.json\">OpenAPI 3.1 JSON</a></li></ul></body></html>";
+        return "redirect:/muonica/index.html";
     }
 
     @GetMapping("/muonica/api")

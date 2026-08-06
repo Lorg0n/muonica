@@ -1,1 +1,5 @@
-// Frontend workspace placeholder. A dedicated frontend toolchain will be added here.
+plugins {
+    `java-library`
+}
+
+// Packages the framework-free UI as classpath resources consumed by muonica-spring.

@@ -33,6 +33,6 @@ class MuonicaDocumentationIntegrationTest {
         assertEquals("3.1.1", document.get("openapi"));
         assertTrue(((Map<?, ?>) document.get("paths")).containsKey("/users/{id}"));
         assertTrue(((Map<?, ?>) document.get("components")).containsKey("securitySchemes"));
-        assertTrue(documentationController.home().contains("/muonica/openapi.json"));
+        assertEquals("redirect:/muonica/index.html", documentationController.home());
     }
 }
