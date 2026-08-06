@@ -5,6 +5,8 @@ import io.muonica.spring.web.MuonicaDocumentationController;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.ApplicationContext;
+import org.springframework.core.env.Environment;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 @AutoConfiguration
@@ -12,8 +14,8 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 public class MuonicaAutoConfiguration {
 
     @Bean
-    MuonicaEndpointScanner muonicaEndpointScanner(RequestMappingHandlerMapping handlerMapping) {
-        return new MuonicaEndpointScanner(handlerMapping);
+    MuonicaEndpointScanner muonicaEndpointScanner(RequestMappingHandlerMapping handlerMapping, ApplicationContext applicationContext, Environment environment) {
+        return new MuonicaEndpointScanner(handlerMapping, applicationContext, environment);
     }
 
     @Bean

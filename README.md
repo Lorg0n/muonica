@@ -4,19 +4,23 @@ Muonica is an extensible documentation library for Spring Boot. Its own Java mod
 
 ## Current vertical slice
 
-`muonica-demo` starts a Spring Boot application and exposes a live endpoint catalogue at:
+`muonica-demo` starts a Spring Boot application and exposes:
 
 ```text
-GET /muonica/api
+GET /muonica              # minimal landing page
+GET /muonica/api          # Muonica JSON model
+GET /muonica/openapi.json # OpenAPI 3.1.1 JSON
 ```
 
-For example, it reports the demo `GET /users/{id}` handler with its controller and method names.
+The scanner detects Spring MVC mappings, request/response DTOs, validation constraints,
+multipart parts, standard parameter locations, Muonica documentation blocks, and Muonica
+security annotations. The OpenAPI module exports the neutral model; it is not the source of truth.
 
 ## Modules
 
 - `muonica-core` — framework-independent documentation model.
 - `muonica-spring` — discovers Spring MVC handler mappings and exposes the JSON endpoint.
-- `muonica-openapi` — reserved adapter module for OpenAPI 3.1 export.
+- `muonica-openapi` — OpenAPI 3.1.1 export adapter.
 - `muonica-ui` — reserved home for a separate frontend.
 - `muonica-demo` — executable Spring Boot example.
 
