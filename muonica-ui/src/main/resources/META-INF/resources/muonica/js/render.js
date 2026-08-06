@@ -1,9 +1,9 @@
 const methodStyles = {
-    GET: "text-mint bg-mint/10",
-    POST: "text-sky-400 bg-sky-400/10",
-    PUT: "text-amber-400 bg-amber-400/10",
-    PATCH: "text-brand bg-brand/10",
-    DELETE: "text-red-400 bg-red-400/10"
+    GET: "method-get",
+    POST: "method-post",
+    PUT: "method-put",
+    PATCH: "method-patch",
+    DELETE: "method-delete"
 };
 
 export const escapeHtml = (value = "") => String(value)
@@ -12,10 +12,10 @@ export const escapeHtml = (value = "") => String(value)
 
 const copyIcon = '<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
 
-function methodBadge(method) {
+function methodBadge(method, compact = false) {
     const value = (method || "API").toUpperCase();
-    const style = methodStyles[value] || "text-ink-300 border-ink-700 bg-ink-800";
-    return `<span class="mono text-xs font-bold tracking-wide ${style} rounded-md px-2.5 py-1.5 shrink-0">${escapeHtml(value)}</span>`;
+    const style = methodStyles[value] || "method-api";
+    return `<span class="method-badge ${compact ? "method-badge-compact" : ""} ${style}">${escapeHtml(value)}</span>`;
 }
 
 function schemaType(schema) {
@@ -108,6 +108,20 @@ function responseExampleForSchema(schema, schemas = {}, depth = 0) {
     return "hello";
 }
 
+function pathParameterInputs(endpoint, pathValues = {}) {
+    const parameters = (endpoint.parameters || []).filter(parameter => parameter.location === "PATH");
+    if (!parameters.length) return "";
+    return `<div class="request-paths">
+        <p class="request-path-label">Path parameters</p>
+        <div class="grid gap-3 sm:grid-cols-2">
+            ${parameters.map(parameter => `<label>
+                <span class="sr-only">Value for ${escapeHtml(parameter.name)}</span>
+                <input data-path-parameter="${escapeHtml(parameter.name)}" value="${escapeHtml(pathValue(pathValues, parameter))}" class="request-path-input" autocomplete="off" aria-label="Value for ${escapeHtml(parameter.name)}">
+            </label>`).join("")}
+        </div>
+    </div>`;
+}
+
 function codePanel(endpoint, project, state = {}) {
     const content = Object.entries(endpoint.request?.content || {});
     const [contentType, schema] = content[0] || [null, null];
@@ -121,17 +135,20 @@ function codePanel(endpoint, project, state = {}) {
         : "This endpoint does not define a request body.");
 
     return `<div data-code-panel="true">
-        <h2 class="text-xl font-bold text-white mb-2">${hasBody ? "Request body" : "Try this endpoint"}</h2>
-        <p class="text-ink-400 mb-4">${escapeHtml(description)}${hasBody ? " Click into the code below to edit it." : " The request is sent without a body."}</p>
+        <div class="section-heading">
+            <div><h2 class="section-title">${hasBody ? "Request body" : "Try this endpoint"}</h2><p class="mt-1.5 text-sm text-ink-400">${escapeHtml(description)}${hasBody ? " Click into the code below to edit it." : " The request is sent without a body."}</p></div>
+            <span class="section-meta">interactive</span>
+        </div>
 
-        <div class="bg-ink-900 border border-ink-800 rounded-xl overflow-hidden">
-            <div class="flex items-center justify-between px-4 py-2.5 border-b border-ink-800">
+        <div class="request-panel content-surface">
+            ${pathParameterInputs(endpoint, state.pathValues || {})}
+            <div class="panel-header">
                 <div class="flex items-center gap-1">
-                    ${hasBody ? `<button class="code-tab text-xs font-semibold px-3 py-1.5 rounded-md ${activeTab === "json" ? "bg-ink-800 text-white" : "text-ink-400 hover:text-white hover:bg-ink-800"}" data-tab="json" type="button">JSON</button>` : ""}
-                    <button class="code-tab text-xs font-semibold px-3 py-1.5 rounded-md ${activeTab === "curl" ? "bg-ink-800 text-white" : "text-ink-400 hover:text-white hover:bg-ink-800"}" data-tab="curl" type="button">cURL</button>
+                    ${hasBody ? `<button class="code-tab text-xs font-semibold px-3 py-1.5 rounded-md ${activeTab === "json" ? "code-tab-active" : "text-ink-400 hover:text-white hover:bg-ink-800"}" data-tab="json" type="button">JSON</button>` : ""}
+                    <button class="code-tab text-xs font-semibold px-3 py-1.5 rounded-md ${activeTab === "curl" ? "code-tab-active" : "text-ink-400 hover:text-white hover:bg-ink-800"}" data-tab="curl" type="button">cURL</button>
                 </div>
                 <div class="flex items-center gap-2">
-                    <span id="json-error" class="hidden text-[11px] font-medium text-brand"></span>
+                    <span id="json-error" class="hidden text-[11px] font-medium text-brand" role="alert"></span>
                     <button class="copy-code w-7 h-7 flex items-center justify-center rounded-md text-ink-400 hover:text-white hover:bg-ink-800 transition-colors" data-copy-kind="code" aria-label="Copy code" type="button">${copyIcon}</button>
                 </div>
             </div>
@@ -139,17 +156,17 @@ function codePanel(endpoint, project, state = {}) {
                 ${hasBody ? `<pre id="code-json" contenteditable="true" spellcheck="false" data-content-type="${escapeHtml(contentType)}" class="${activeTab === "json" ? "" : "hidden "}code-editor mono text-[13px] leading-6 text-ink-200 px-4 py-4 outline-none whitespace-pre focus:bg-ink-850/40">${highlightedJson(code)}</pre>` : ""}
                 <pre id="code-curl" class="${activeTab === "curl" ? "" : "hidden "}code-curl mono text-[13px] leading-6 text-ink-200 px-4 py-4 whitespace-pre-wrap">${highlightedCurl(curl)}</pre>
             </div>
-            <div class="flex items-center justify-between gap-4 px-4 py-3 border-t border-ink-800 bg-ink-850/40">
+            <div class="panel-footer">
                 <span class="text-[11px] text-ink-500">Requests are sent to this API.</span>
-                <button id="send-btn" class="flex items-center gap-2 bg-brand hover:bg-brand/90 disabled:opacity-60 disabled:cursor-wait text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors shrink-0" type="button">
+                <button id="send-btn" class="send-button flex items-center gap-2 disabled:opacity-60 disabled:cursor-wait text-xs font-semibold px-4 py-2 rounded-lg transition-colors shrink-0" type="button">
                     <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m5 12 14 0M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
                     Send request
                 </button>
             </div>
         </div>
 
-        <div id="response-panel" class="mt-5 bg-ink-900 border border-ink-800 rounded-xl overflow-hidden" aria-live="polite">
-            <div class="flex items-center justify-between px-4 py-2.5 border-b border-ink-800">
+        <div id="response-panel" class="response-panel content-surface mt-5" aria-live="polite">
+            <div class="panel-header">
                 <div class="flex items-center gap-3">
                     <span class="text-xs font-semibold text-ink-400">Response</span>
                     <span id="response-status" class="mono text-xs font-bold px-2 py-0.5 rounded border text-ink-400 border-ink-700 bg-ink-800">Waiting</span>
@@ -167,57 +184,45 @@ function codePanel(endpoint, project, state = {}) {
     </div>`;
 }
 
-function parameterCard(parameters, heading, pathValues = {}) {
+function parameterCard(parameters, heading) {
     if (!parameters.length) return "";
-    const isPath = heading === "Path parameters";
-    return `<div>
-        <h3 class="text-white font-bold mb-3">${escapeHtml(heading)}</h3>
-        <div class="bg-ink-900 border border-ink-800 rounded-xl overflow-hidden">
-            <table class="w-full text-xs">
-                <thead>
-                    <tr class="text-ink-500 uppercase tracking-wider text-[10.5px] border-b border-ink-800">
-                        <th class="text-left font-semibold px-4 py-3">Parameter</th>
-                        <th class="text-left font-semibold px-2 py-3">Type</th>
-                        <th class="text-left font-semibold px-2 py-3">Required</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-ink-800">
-                    ${parameters.map(parameter => `<tr>
-                        <td class="px-4 py-3 text-white font-semibold mono align-top">${escapeHtml(parameter.name)}${parameter.description ? `<div class="mt-1 font-sans font-normal text-ink-400 whitespace-normal">${escapeHtml(parameter.description)}</div>` : ""}</td>
-                        <td class="px-2 py-3 text-ink-400 align-top">${escapeHtml(schemaType(parameter.schema))}</td>
-                        <td class="px-2 py-3 font-semibold align-top ${parameter.required ? "text-mint" : "text-ink-500"}">${parameter.required ? "yes" : "no"}</td>
-                    </tr>`).join("")}
-                </tbody>
-            </table>
-            ${isPath ? `<div class="px-4 py-3 border-t border-ink-800 space-y-3">
-                ${parameters.map(parameter => `<label class="block">
-                    <span class="sr-only">Value for ${escapeHtml(parameter.name)}</span>
-                    <input data-path-parameter="${escapeHtml(parameter.name)}" value="${escapeHtml(pathValue(pathValues, parameter))}" class="w-full bg-ink-850 border border-ink-800 rounded-md px-2.5 py-1.5 text-xs text-white mono focus:outline-none focus:border-brand" autocomplete="off">
-                    <span class="block text-xs text-ink-400 mt-1.5">Value for <span class="mono text-ink-300">${escapeHtml(parameter.name)}</span>.</span>
-                </label>`).join("")}
-            </div>` : ""}
+    return `<div class="parameter-group">
+        <h3 class="parameter-group-title">${escapeHtml(heading)}</h3>
+        <div class="parameter-list content-surface">
+            ${parameters.map(parameter => `<div class="parameter-row">
+                <div>
+                    <p class="parameter-name">${escapeHtml(parameter.name)}</p>
+                    ${parameter.description ? `<p class="parameter-description">${escapeHtml(parameter.description)}</p>` : ""}
+                </div>
+                <div>
+                    <p class="parameter-location">${escapeHtml(String(parameter.location || "parameter").toLowerCase())}</p>
+                    <p class="parameter-type">${escapeHtml(schemaType(parameter.schema))}</p>
+                    <span class="parameter-required ${parameter.required ? "" : "parameter-optional"}">${parameter.required ? "required" : "optional"}</span>
+                </div>
+            </div>`).join("")}
         </div>
     </div>`;
 }
 
 function responseList(responses, schemas = {}) {
     if (!responses?.length) return "";
-    return `<div class="mt-10"><h2 class="text-xl font-bold text-white mb-4">Responses</h2><div class="space-y-3">${responses.map(response => {
+    const firstSuccess = responses.findIndex(response => /^2/.test(response.statusCode || ""));
+    return `<section class="section-block"><div class="section-heading"><h2 class="section-title">Responses</h2><span class="section-meta">${responses.length} ${responses.length === 1 ? "outcome" : "outcomes"}</span></div><div class="space-y-3">${responses.map((response, index) => {
         const success = /^2/.test(response.statusCode || "");
         const schema = Object.values(response.content || {})[0];
         const example = schema ? JSON.stringify(responseExampleForSchema(schema, schemas), null, 2) : null;
         const responseHeader = `<div class="flex flex-1 min-w-0 gap-4 items-center p-4">
-                <span class="mono font-bold ${success ? "text-mint bg-mint/5" : "text-brand bg-brand/5"} px-2 py-1 rounded text-sm shrink-0">${escapeHtml(response.statusCode)}</span>
+                <span class="mono font-bold ${success ? "text-mint bg-mint/5" : "text-brand bg-brand/5"} px-2 py-1 rounded text-sm shrink-0">${escapeHtml(response.statusCode || "—")}</span>
                 <span class="text-sm text-ink-300">${escapeHtml(response.description || "Response")}</span>
             </div>`;
-        return example ? `<details class="response-disclosure bg-ink-900 border border-ink-800 rounded-xl overflow-hidden">
+        return example ? `<details class="response-disclosure content-surface overflow-hidden" ${index === firstSuccess ? "open" : ""}>
             <summary class="flex items-center cursor-pointer hover:bg-ink-850/50 transition-colors">
                 ${responseHeader}
                 <svg class="response-chevron w-4 h-4 ml-auto mr-4 shrink-0 text-ink-500 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </summary>
-            <pre class="border-t border-ink-800 mono text-[13px] leading-6 text-ink-200 px-4 py-4 whitespace-pre overflow-x-auto">${highlightedJson(example)}</pre>
-        </details>` : `<div class="bg-ink-900 border border-ink-800 rounded-xl overflow-hidden">${responseHeader}</div>`;
-    }).join("")}</div></div>`;
+            <pre class="response-example mono text-[13px] leading-6 text-ink-200 px-4 py-4 whitespace-pre overflow-x-auto">${highlightedJson(example)}</pre>
+        </details>` : `<div class="content-surface overflow-hidden">${responseHeader}</div>`;
+    }).join("")}</div></section>`;
 }
 
 function markdownInline(value) {
@@ -292,12 +297,23 @@ export function renderMarkdown(markdown = "") {
             output.push(`<li>${markdownInline((unordered || ordered)[1])}</li>`);
             continue;
         }
+        const quote = line.match(/^\s*>\s?(.*)$/);
+        if (quote) {
+            closeList();
+            output.push(`<blockquote>${markdownInline(quote[1])}</blockquote>`);
+            continue;
+        }
+        if (/^\s*([-*_])(?:\s*\1){2,}\s*$/.test(line)) {
+            closeList();
+            output.push("<hr>");
+            continue;
+        }
         if (!line.trim()) {
             closeList();
             continue;
         }
         closeList();
-        output.push(`<p class="text-ink-300 leading-relaxed">${markdownInline(line)}</p>`);
+        output.push(`<p>${markdownInline(line)}</p>`);
     }
     closeList();
     closeCode();
@@ -318,19 +334,19 @@ function blockSource(block) {
 
 function noticeBlock(block) {
     const level = block.attributes?.level || "info";
-    const styles = {
-        info: "border-sky-400/30 bg-sky-400/5 text-sky-200",
-        warning: "border-amber-400/30 bg-amber-400/5 text-amber-200",
-        danger: "border-red-400/30 bg-red-400/5 text-red-200"
-    };
-    return `<aside class="mt-10 rounded-xl border p-5 ${styles[level] || styles.info}"><p class="text-[11px] font-bold uppercase tracking-wider mb-2">${escapeHtml(level)}</p><div class="leading-relaxed">${renderMarkdown(block.content)}</div></aside>`;
+    const normalizedLevel = ["info", "warning", "danger"].includes(level) ? level : "info";
+    const icons = { info: "i", warning: "!", danger: "!" };
+    return `<aside class="notice-block notice-${normalizedLevel}" role="note">
+        <div class="notice-heading"><span class="notice-icon" aria-hidden="true">${icons[normalizedLevel]}</span>${escapeHtml(normalizedLevel)}</div>
+        <div class="markdown">${renderMarkdown(block.content)}</div>
+    </aside>`;
 }
 
 function diagramBlock(block) {
     const renderer = block.attributes?.renderer || "unknown";
-    return `<section class="mt-10 bg-ink-900 border border-ink-800 rounded-xl overflow-hidden" data-diagram="${escapeHtml(renderer)}">
-        <div class="flex items-center justify-between gap-4 px-5 py-3 border-b border-ink-800"><div><h2 class="text-lg font-bold text-white">Diagram</h2><p class="text-[11px] text-ink-500 uppercase tracking-wider">${escapeHtml(renderer)}</p></div><button data-diagram-render="${escapeHtml(renderer)}" class="text-xs font-semibold text-brand hover:text-white border border-ink-700 hover:border-brand rounded-md px-3 py-1.5 transition-colors" type="button">Render diagram</button></div>
-        <pre class="diagram-source mono text-[13px] leading-6 text-ink-200 px-5 py-4 overflow-x-auto whitespace-pre-wrap">${escapeHtml(block.content)}</pre>
+    return `<section class="section-block diagram-panel" data-diagram="${escapeHtml(renderer)}">
+        <div class="panel-header"><div><h2 class="section-title">Diagram</h2><p class="section-meta mt-1">${escapeHtml(renderer)}</p></div><button data-diagram-render="${escapeHtml(renderer)}" class="diagram-action text-xs font-semibold rounded-md px-3 py-1.5" type="button">Render</button></div>
+        <pre class="diagram-source mono text-[13px] leading-6 px-5 py-4 overflow-x-auto whitespace-pre-wrap">${escapeHtml(block.content)}</pre>
         <div class="diagram-output hidden border-t border-ink-800 p-5"></div>
     </section>`;
 }
@@ -339,40 +355,48 @@ function securitySection(endpoint, project, block) {
     const requirements = endpoint.securityRequirements || [];
     if (!requirements.length && block.origin === "GENERATED") return "";
     const schemes = Object.fromEntries((project.securitySchemes || []).map(scheme => [scheme.name, scheme]));
-    return `<section class="mt-10 bg-ink-900 border border-ink-800 rounded-xl p-5"><div class="flex items-center justify-between gap-3 mb-4"><h2 class="text-xl font-bold text-white">Authentication</h2><span class="text-[11px] uppercase tracking-wider text-ink-500">${escapeHtml(originLabel(block))}</span></div>
-        ${requirements.length ? `<div class="space-y-3">${requirements.map(name => {
+    return `<section class="section-block"><div class="section-heading"><h2 class="section-title">Authentication</h2><span class="section-meta">${escapeHtml(originLabel(block))}</span></div>
+        <div class="auth-surface content-surface">${requirements.length ? `<div>${requirements.map(name => {
             const scheme = schemes[name];
             const details = scheme ? [scheme.type, scheme.scheme, scheme.bearerFormat].filter(Boolean).join(" · ") : "Security requirement";
-            return `<div class="rounded-lg border border-ink-800 bg-ink-850/40 p-4"><p class="mono text-sm text-white">${escapeHtml(name)}</p><p class="text-xs text-ink-400 mt-1">${escapeHtml(details)}</p></div>`;
-        }).join("")}</div>` : `<p class="text-ink-400">No authentication is required for this operation.</p>`}
+            const placement = scheme?.parameterName ? `${scheme.parameterName}${scheme.parameterLocation ? ` · ${String(scheme.parameterLocation).toLowerCase()}` : ""}` : "Operation security requirement";
+            return `<div class="auth-row"><div><p class="auth-name">${escapeHtml(name)}</p><p class="auth-details">${escapeHtml(details)}</p></div><div class="text-right"><p class="auth-label">${escapeHtml(placement)}</p><p class="mt-1 text-xs text-mint">required</p></div></div>`;
+        }).join("")}</div>` : `<p class="text-sm text-ink-400">No authentication is required for this operation.</p>`}</div>
     </section>`;
 }
 
-function parametersSection(endpoint, pathValues, block) {
+function parametersSection(endpoint, block) {
     const pathParameters = (endpoint.parameters || []).filter(parameter => parameter.location === "PATH");
     const otherParameters = (endpoint.parameters || []).filter(parameter => parameter.location !== "PATH");
     if (!pathParameters.length && !otherParameters.length) return "";
-    return `<section class="mt-10"><div class="flex items-center justify-between gap-3 mb-4"><h2 class="text-xl font-bold text-white">Parameters</h2><span class="text-[11px] uppercase tracking-wider text-ink-500">${escapeHtml(originLabel(block))}</span></div><div class="space-y-6">${parameterCard(pathParameters, "Path parameters", pathValues)}${parameterCard(otherParameters, "Query and header parameters")}</div></section>`;
+    return `<section class="section-block"><div class="section-heading"><h2 class="section-title">Parameters</h2><span class="section-meta">${escapeHtml(originLabel(block))}</span></div><div>${parameterCard(pathParameters, "Path parameters")}${parameterCard(otherParameters, "Query and header parameters")}</div></section>`;
 }
 
 function genericDocumentationBlock(block) {
-    return `<section class="mt-10 bg-ink-900 border border-ink-800 rounded-xl p-5"><div class="flex items-center justify-between gap-3 mb-3"><p class="text-[11px] font-semibold tracking-wider text-ink-500 uppercase">${escapeHtml(block.type)}</p>${blockSource(block)}</div><pre class="whitespace-pre-wrap text-sm text-ink-300 font-sans leading-relaxed">${escapeHtml(block.content)}</pre></section>`;
+    return `<section class="section-block content-surface p-5"><div class="flex items-center justify-between gap-3 mb-3"><p class="section-meta">${escapeHtml(block.type)}</p>${blockSource(block)}</div><pre class="whitespace-pre-wrap text-sm text-ink-300 font-sans leading-relaxed">${escapeHtml(block.content)}</pre></section>`;
 }
 
 export function documentationBlocks(blocks, endpoint, project, state = {}) {
-    return (blocks || []).map(block => {
-        if (block.type === "markdown") return `<section class="mt-10 prose-documentation">${renderMarkdown(block.content)}${blockSource(block)}</section>`;
+    const rendered = block => {
+        if (block.type === "markdown") return `<section class="section-block prose-documentation markdown">${renderMarkdown(block.content)}${blockSource(block)}</section>`;
         if (block.type === "notice") return noticeBlock(block);
         if (block.type === "diagram") return diagramBlock(block);
         if (block.type === "slot") {
             const name = block.attributes?.name;
-            if (name === "request") return `<section class="mt-10">${codePanel(endpoint, project, {...state, pathValues: state.pathValues})}</section>`;
+            if (name === "request") return `<section class="section-block">${codePanel(endpoint, project, {...state, pathValues: state.pathValues})}</section>`;
             if (name === "responses") return responseList(endpoint.responses, project.schemas);
-            if (name === "parameters") return parametersSection(endpoint, state.pathValues || {}, block);
+            if (name === "parameters") return parametersSection(endpoint, block);
             if (name === "security") return securitySection(endpoint, project, block);
         }
         return genericDocumentationBlock(block);
-    }).join("");
+    };
+    const authored = (blocks || []).filter(block => block.type === "markdown" || block.type === "notice");
+    const knownSlots = new Set(["security", "parameters", "request", "responses"]);
+    const diagrams = (blocks || []).filter(block => block.type === "diagram" || (block.type !== "markdown" && block.type !== "notice" && (block.type !== "slot" || !knownSlots.has(block.attributes?.name))));
+    const slotBlocks = (blocks || []).filter(block => block.type === "slot" && block.attributes?.name);
+    const orderedSlots = ["security", "parameters", "request", "responses"]
+        .flatMap(name => slotBlocks.filter(block => block.attributes.name === name));
+    return [...authored, ...orderedSlots, ...diagrams].map(rendered).join("");
 }
 
 export function renderShell(project, selected, query, menuOpen = false, state = {}) {
@@ -380,14 +404,15 @@ export function renderShell(project, selected, query, menuOpen = false, state = 
     const endpoint = selected?.endpoint;
     const title = endpoint ? endpoint.summary || `${endpoint.method} ${endpoint.path}` : project.name || "Muonica";
     const pathParameters = (endpoint?.parameters || []).filter(parameter => parameter.location === "PATH");
-    const otherParameters = (endpoint?.parameters || []).filter(parameter => parameter.location !== "PATH");
     const description = endpoint?.description || selected?.group.description || project.description;
     const resolvedPathValues = state.pathValues || Object.fromEntries(pathParameters.map(parameter => [parameter.name, defaultPathValue(parameter)]));
+    const resolvedPath = endpoint ? resolvePath(endpoint.path, resolvedPathValues) : "";
+    const responses = endpoint?.responses || [];
 
-    return `<header class="sticky top-0 z-30 flex items-center justify-between h-16 px-4 lg:px-6 border-b border-ink-800 bg-ink-950/90 backdrop-blur">
+    return `<header class="doc-header sticky top-0 z-30 flex items-center justify-between h-16 px-4 lg:px-6 border-b backdrop-blur">
         <div class="flex items-center gap-3">
             <button id="menu-toggle" class="lg:hidden text-ink-400 hover:text-white" aria-label="Toggle navigation" aria-expanded="${menuOpen}"><svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round"/></svg></button>
-            <div class="w-8 h-8 rounded-md bg-brand flex items-center justify-center shrink-0">
+            <div class="brand-mark w-8 h-8 rounded-md flex items-center justify-center shrink-0">
                 <svg viewBox="0 0 24 24" class="w-4 h-4 text-white" fill="none"><path d="M4 12c0-4.4 3.6-8 8-8s8 3.6 8 8-3.6 8-8 8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
             </div>
             <span class="text-white font-semibold tracking-tight text-[15px]">muonica</span>
@@ -421,32 +446,39 @@ export function renderShell(project, selected, query, menuOpen = false, state = 
 
     <div class="flex">
         <aside class="hidden lg:block doc-nav w-64 shrink-0 border-r border-ink-800 h-[calc(100vh-64px)] sticky top-16 overflow-y-auto px-5 py-8">
-            <p class="text-[11px] font-semibold tracking-wider text-ink-500 uppercase mb-3">Documentation</p>
+            <p class="eyebrow mb-3">Documentation</p>
             <nav id="sidebar" aria-label="API navigation">${renderNavigation(groups, selected?.key, query)}</nav>
         </aside>
 
-        <main class="flex-1 min-w-0 px-6 lg:px-10 py-10 max-w-[1600px]">
-            ${endpoint ? `<div class="w-full"><p class="text-[11px] font-semibold tracking-wider text-ink-500 uppercase mb-3">${escapeHtml(selected.group.name || "API documentation")}</p>
-            <h1 class="text-4xl font-extrabold text-white tracking-tight mb-3">${escapeHtml(title)}</h1>
-            ${description ? `<p class="text-ink-400 leading-relaxed max-w-2xl mb-10">${escapeHtml(description)}</p>` : `<div class="mb-10"></div>`}
-
-            <div class="grid grid-cols-1 xl:grid-cols-[1fr_300px] gap-10">
-                <div class="min-w-0">
-                    <h2 class="text-xl font-bold text-white mb-4">Endpoint</h2>
-                    <div class="flex items-center gap-3 bg-ink-900 rounded-xl p-2 mb-10">
+        <main class="docs-main flex-1 min-w-0 px-6 lg:px-12 py-10 lg:py-14">
+            ${endpoint ? `<div class="mx-auto max-w-[1180px]">
+                <div class="endpoint-hero">
+                    <p class="eyebrow mb-3">${escapeHtml(selected.group.name || "API documentation")}</p>
+                    <h1 class="endpoint-title text-4xl lg:text-5xl font-extrabold text-white tracking-tight mb-4">${escapeHtml(title)}</h1>
+                    ${description ? `<p class="endpoint-description text-[15px] text-ink-300 leading-7 mb-7">${escapeHtml(description)}</p>` : ""}
+                    <div class="endpoint-line" aria-label="API endpoint">
                         ${methodBadge(endpoint.method)}
-                        <code id="endpoint-url" class="mono text-sm text-ink-200 px-3 py-1.5 flex-1 truncate">${escapeHtml(resolvePath(endpoint.path, resolvedPathValues))}</code>
-                        <button class="copy-code shrink-0 w-8 h-8 flex items-center justify-center rounded-md text-ink-400 hover:text-white hover:bg-ink-800 transition-colors" data-copy="${escapeHtml(resolvePath(endpoint.path, resolvedPathValues))}" aria-label="Copy endpoint" type="button">${copyIcon}</button>
-                    </div>
-                    ${documentationBlocks(endpoint.documentationBlocks, endpoint, project, {...state, pathValues: resolvedPathValues})}
-                </div>
-                <div class="space-y-6">
-                    <div class="bg-ink-900 border border-ink-800 rounded-xl p-5">
-                        <h3 class="text-white font-bold mb-1.5">Need help?</h3>
-                        <p class="text-xs text-ink-400 leading-relaxed">Explore the <a class="text-brand font-medium hover:underline" href="./openapi.json">API reference</a> or contact developer support →</p>
+                        <code id="endpoint-url" class="endpoint-path mono text-[13px] text-ink-200 px-2 py-1.5 flex-1">${escapeHtml(resolvedPath)}</code>
+                        <button class="copy-code shrink-0 w-8 h-8 flex items-center justify-center rounded-md text-ink-400 hover:text-white hover:bg-ink-800 transition-colors" data-copy="${escapeHtml(resolvedPath)}" aria-label="Copy endpoint path" type="button">${copyIcon}</button>
                     </div>
                 </div>
-            </div></div>` : renderEmpty(project)}
+
+                <div class="docs-layout grid grid-cols-1 xl:grid-cols-[minmax(0,850px)_240px] gap-10 lg:gap-14">
+                    <article class="docs-article">
+                        ${documentationBlocks(endpoint.documentationBlocks, endpoint, project, {...state, pathValues: resolvedPathValues})}
+                    </article>
+                    <aside class="docs-aside hidden xl:block" aria-label="Endpoint details">
+                        <div class="aside-card">
+                            <p class="eyebrow mb-4">At a glance</p>
+                            <dl class="space-y-4">
+                                <div><dt class="section-meta">Method</dt><dd class="mono mt-1 text-sm text-white">${escapeHtml(endpoint.method || "API")}</dd></div>
+                                <div><dt class="section-meta">Responses</dt><dd class="mt-1 text-sm text-white">${responses.length || "—"}</dd></div>
+                                <div><dt class="section-meta">Reference</dt><dd class="mt-1 text-xs leading-5"><a class="text-brand hover:text-white hover:underline" href="./openapi.json">OpenAPI schema →</a></dd></div>
+                            </dl>
+                        </div>
+                    </aside>
+                </div>
+            </div>` : renderEmpty(project)}
         </main>
     </div>`;
 }
@@ -456,13 +488,14 @@ function renderNavigation(groups, selectedKey, query) {
     return groups.map((group, groupIndex) => {
         const endpoints = (group.endpoints || []).filter(endpoint => !term || [endpoint.path, endpoint.summary, endpoint.description, group.name].filter(Boolean).join(" ").toLowerCase().includes(term));
         if (!endpoints.length) return "";
-        return `<div class="mb-7"><p class="text-[11px] font-semibold tracking-wider text-ink-500 uppercase mb-3">${escapeHtml(group.name || "API")}</p>
+        return `<div class="mb-7"><p class="eyebrow mb-3">${escapeHtml(group.name || "API")}</p>
         <nav class="space-y-0.5 text-sm">${endpoints.map(endpoint => {
             const key = `${groupIndex}:${group.endpoints.indexOf(endpoint)}`;
             const selected = key === selectedKey;
-            return `<button class="endpoint-link w-full text-left relative block px-2.5 py-1.5 rounded-md ${selected ? "text-white bg-ink-900 font-medium" : "text-ink-300 hover:text-white hover:bg-ink-900"}" data-endpoint="${key}" ${selected ? 'aria-current="page"' : ""} type="button">
+            return `<button class="endpoint-link w-full text-left relative flex items-center gap-2.5 px-2.5 py-2 rounded-md ${selected ? "text-white bg-ink-900 font-medium" : "text-ink-300 hover:text-white hover:bg-ink-900"}" data-endpoint="${key}" ${selected ? 'aria-current="page"' : ""} type="button">
                 ${selected ? '<span class="absolute left-0 top-1.5 bottom-1.5 w-[2px] bg-brand rounded-full"></span>' : ""}
-                ${escapeHtml(endpoint.summary || endpoint.path)}
+                ${methodBadge(endpoint.method, true)}
+                <span class="min-w-0 truncate">${escapeHtml(endpoint.summary || endpoint.path)}</span>
             </button>`;
         }).join("")}</nav></div>`;
     }).join("") || `<p class="text-sm text-ink-400">No matching endpoints.</p>`;

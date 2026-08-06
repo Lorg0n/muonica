@@ -161,7 +161,7 @@ async function sendRequest() {
         const successful = result.response.ok;
         const statusCode = result.response.status;
         status.textContent = `${statusCode} ${result.response.statusText || (successful ? "OK" : "Response")}`;
-        status.className = `mono text-xs font-bold px-2 py-0.5 rounded border ${successful ? "text-mint border-mint/40 bg-mint/10" : "text-brand border-brand/40 bg-brand/10"}`;
+        status.className = `mono text-xs font-bold px-2 py-0.5 rounded border ${successful ? "response-status-success" : "response-status-error"}`;
         responseTime.textContent = `${Math.max(1, Math.round(performance.now() - started))}ms`;
         responseBody.innerHTML = responseMarkup(result.text);
         button.disabled = false;
@@ -171,7 +171,7 @@ async function sendRequest() {
     } catch (error) {
         if (!button.isConnected) return;
         status.textContent = "Request failed";
-        status.className = "mono text-xs font-bold px-2 py-0.5 rounded border text-brand border-brand/40 bg-brand/10";
+        status.className = "mono text-xs font-bold px-2 py-0.5 rounded border response-status-error";
         responseTime.textContent = `${Math.max(1, Math.round(performance.now() - started))}ms`;
         responseBody.innerHTML = `<span class="text-brand">${escapeHtml(error.message || "The request could not be sent.")}</span>`;
         panel.classList.remove("hidden");
@@ -216,6 +216,7 @@ function attachRequestInteractions() {
             app.querySelector("#code-curl")?.classList.toggle("hidden", tab !== "curl");
             app.querySelectorAll(".code-tab").forEach(tabButton => {
                 const active = tabButton === button;
+                tabButton.classList.toggle("code-tab-active", active);
                 tabButton.classList.toggle("bg-ink-800", active);
                 tabButton.classList.toggle("text-white", active);
                 tabButton.classList.toggle("text-ink-400", !active);
