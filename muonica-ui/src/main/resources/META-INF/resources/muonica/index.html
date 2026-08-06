@@ -4,11 +4,31 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Muonica API documentation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        canvas: "#000000", panel: "#050505", surface: "#0d0d0e",
+                        line: "#25272b", ink: "#f3f5f7", muted: "#89949f",
+                        dim: "#5b6670", coral: "#f2635a", teal: "#70d7d0", green: "#52d397"
+                    },
+                    fontFamily: { sans: ["Inter Tight", "Inter", "ui-sans-serif", "system-ui", "sans-serif"] }
+                }
+            }
+        };
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&display=swap');
+        html { background: #000; color-scheme: dark; }
+        ::selection { background: #70d7d0; color: #080b0e; }
+        .code-scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
+        .code-scrollbar::-webkit-scrollbar-thumb { background: #34363b; border-radius: 999px; }
+    </style>
 </head>
-<body>
-    <main>
-        <h1>Muonica API documentation</h1>
-        <p>Loading documentation…</p>
-    </main>
+<body class="min-h-screen bg-canvas font-sans text-ink antialiased">
+    <div id="app" class="min-h-screen"></div>
+    <script type="module" src="./js/app.js"></script>
 </body>
 </html>
