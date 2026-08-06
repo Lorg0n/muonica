@@ -48,6 +48,9 @@
         .code-scrollbar::-webkit-scrollbar-thumb { background: #333338; border-radius: 999px; }
         .code-editor { min-height: 220px; tab-size: 2; }
         .code-editor:empty::before { content: "{}"; color: #4a4a52; }
+        .response-disclosure > summary { list-style: none; }
+        .response-disclosure > summary::-webkit-details-marker { display: none; }
+        .response-disclosure[open] .response-chevron { transform: rotate(180deg); }
         button:focus-visible, input:focus-visible, [contenteditable="true"]:focus-visible { outline: 2px solid rgba(232,84,63,.75); outline-offset: 2px; }
     </style>
 </head>

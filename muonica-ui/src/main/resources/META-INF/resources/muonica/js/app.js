@@ -149,7 +149,7 @@ async function sendRequest() {
 
     button.disabled = true;
     button.innerHTML = '<svg class="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.4" stroke-opacity=".25"/><path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg> Sending…';
-    panel.classList.add("hidden");
+    panel.classList.remove("hidden");
 
     try {
         const result = await sendEndpointRequest(endpoint.method, path, requestBody, contentType);

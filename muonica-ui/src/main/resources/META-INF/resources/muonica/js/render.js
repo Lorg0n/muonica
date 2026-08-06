@@ -148,17 +148,19 @@ function codePanel(endpoint, project, state = {}) {
             </div>
         </div>
 
-        <div id="response-panel" class="hidden mt-5 bg-ink-900 border border-ink-800 rounded-xl overflow-hidden" aria-live="polite">
+        <div id="response-panel" class="mt-5 bg-ink-900 border border-ink-800 rounded-xl overflow-hidden" aria-live="polite">
             <div class="flex items-center justify-between px-4 py-2.5 border-b border-ink-800">
                 <div class="flex items-center gap-3">
                     <span class="text-xs font-semibold text-ink-400">Response</span>
-                    <span id="response-status" class="mono text-xs font-bold px-2 py-0.5 rounded border"></span>
-                    <span id="response-time" class="text-[11px] text-ink-500"></span>
+                    <span id="response-status" class="mono text-xs font-bold px-2 py-0.5 rounded border text-ink-400 border-ink-700 bg-ink-800">Waiting</span>
+                    <span id="response-time" class="text-[11px] text-ink-500">Not sent yet</span>
                 </div>
                 <button class="copy-response w-7 h-7 flex items-center justify-center rounded-md text-ink-400 hover:text-white hover:bg-ink-800 transition-colors" aria-label="Copy response" type="button">${copyIcon}</button>
             </div>
             <div class="overflow-x-auto code-scrollbar">
-                <pre id="response-body" class="mono text-[13px] leading-6 text-ink-200 px-4 py-4 whitespace-pre"></pre>
+                <pre id="response-body" class="mono text-[13px] leading-6 text-ink-200 px-4 py-4 whitespace-pre"><span class="text-ink-500">{
+  "message": "Send a request to see the response"
+}</span></pre>
             </div>
         </div>
         <p class="text-xs text-ink-500 mt-3">The response below shows the result returned by your API.</p>
@@ -204,13 +206,17 @@ function responseList(responses, schemas = {}) {
         const success = /^2/.test(response.statusCode || "");
         const schema = Object.values(response.content || {})[0];
         const example = schema ? JSON.stringify(responseExampleForSchema(schema, schemas), null, 2) : null;
-        return `<div class="bg-ink-900 border border-ink-800 rounded-xl overflow-hidden">
-            <div class="flex gap-4 items-center p-4 ${example ? "border-b border-ink-800" : ""}">
+        const responseHeader = `<div class="flex flex-1 min-w-0 gap-4 items-center p-4">
                 <span class="mono font-bold ${success ? "text-mint bg-mint/5" : "text-brand bg-brand/5"} px-2 py-1 rounded text-sm shrink-0">${escapeHtml(response.statusCode)}</span>
                 <span class="text-sm text-ink-300">${escapeHtml(response.description || "Response")}</span>
-            </div>
-            ${example ? `<pre class="mono text-[13px] leading-6 text-ink-200 px-4 py-4 whitespace-pre overflow-x-auto">${highlightedJson(example)}</pre>` : ""}
-        </div>`;
+            </div>`;
+        return example ? `<details class="response-disclosure bg-ink-900 border border-ink-800 rounded-xl overflow-hidden">
+            <summary class="flex items-center cursor-pointer hover:bg-ink-850/50 transition-colors">
+                ${responseHeader}
+                <svg class="response-chevron w-4 h-4 ml-auto mr-4 shrink-0 text-ink-500 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </summary>
+            <pre class="border-t border-ink-800 mono text-[13px] leading-6 text-ink-200 px-4 py-4 whitespace-pre overflow-x-auto">${highlightedJson(example)}</pre>
+        </details>` : `<div class="bg-ink-900 border border-ink-800 rounded-xl overflow-hidden">${responseHeader}</div>`;
     }).join("")}</div></div>`;
 }
 
