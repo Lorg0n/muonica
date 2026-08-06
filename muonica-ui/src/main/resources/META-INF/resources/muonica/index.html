@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Muonica API Documentation</title>
+    <title>muonica — API documentation</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -46,6 +46,9 @@
         .doc-nav::-webkit-scrollbar-thumb { background: #26262b; border-radius: 999px; }
         .code-scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
         .code-scrollbar::-webkit-scrollbar-thumb { background: #333338; border-radius: 999px; }
+        .code-editor { min-height: 220px; tab-size: 2; }
+        .code-editor:empty::before { content: "{}"; color: #4a4a52; }
+        button:focus-visible, input:focus-visible, [contenteditable="true"]:focus-visible { outline: 2px solid rgba(232,84,63,.75); outline-offset: 2px; }
     </style>
 </head>
 <body class="bg-ink-950 text-ink-200 antialiased">
