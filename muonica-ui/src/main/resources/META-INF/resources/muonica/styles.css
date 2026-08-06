@@ -64,14 +64,22 @@ input:focus-visible,
 .doc-nav::-webkit-scrollbar-thumb { background: var(--muonica-border); border-radius: 999px; }
 
 .sidebar-method {
-    min-width: 2.7rem;
-    font-size: 9px;
+    min-width: 2.2rem;
+    font-size: 11px;
     line-height: 1;
-    letter-spacing: .04em;
-    font-weight: 800;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    letter-spacing: .03em;
+    text-align: left;
+    flex-shrink: 0;
 }
 
-.endpoint-link[aria-current="page"] { box-shadow: inset 2px 0 var(--muonica-brand); }
+.text-method-get { color: var(--muonica-success); }
+.text-method-post { color: #7dd3fc; }
+.text-method-put { color: var(--muonica-warning); }
+.text-method-patch { color: var(--muonica-brand); }
+.text-method-delete { color: var(--muonica-danger); }
+.text-method-api { color: var(--muonica-text-muted); }
 
 .docs-main { width: 100%; }
 .docs-layout { align-items: start; }

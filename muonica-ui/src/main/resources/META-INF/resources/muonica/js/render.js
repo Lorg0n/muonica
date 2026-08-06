@@ -488,13 +488,18 @@ function renderNavigation(groups, selectedKey, query) {
     return groups.map((group, groupIndex) => {
         const endpoints = (group.endpoints || []).filter(endpoint => !term || [endpoint.path, endpoint.summary, endpoint.description, group.name].filter(Boolean).join(" ").toLowerCase().includes(term));
         if (!endpoints.length) return "";
-        return `<div class="mb-7"><p class="eyebrow mb-3">${escapeHtml(group.name || "API")}</p>
-        <nav class="space-y-0.5 text-sm">${endpoints.map(endpoint => {
+        return `<div class="mb-7"><p class="eyebrow mb-2">${escapeHtml(group.name || "API")}</p>
+        <nav class="space-y-0.5 text-[14px]">${endpoints.map(endpoint => {
             const key = `${groupIndex}:${group.endpoints.indexOf(endpoint)}`;
             const selected = key === selectedKey;
-            return `<button class="endpoint-link w-full text-left relative flex items-center gap-2.5 px-2.5 py-2 rounded-md ${selected ? "text-white bg-ink-900 font-medium" : "text-ink-300 hover:text-white hover:bg-ink-900"}" data-endpoint="${key}" ${selected ? 'aria-current="page"' : ""} type="button">
-                ${selected ? '<span class="absolute left-0 top-1.5 bottom-1.5 w-[2px] bg-brand rounded-full"></span>' : ""}
-                ${methodBadge(endpoint.method, true)}
+            const method = (endpoint.method || "API").toUpperCase();
+            let shortMethod = method;
+            if (method === "DELETE") shortMethod = "DEL";
+            if (method === "PATCH") shortMethod = "PAT";
+            if (method === "OPTIONS") shortMethod = "OPT";
+
+            return `<button class="endpoint-link w-full text-left flex items-center gap-3 -mx-3 px-3 py-2 rounded-lg transition-colors ${selected ? "text-white bg-ink-800 font-medium" : "text-ink-400 hover:text-ink-200 hover:bg-ink-900"}" data-endpoint="${key}" ${selected ? 'aria-current="page"' : ""} type="button">
+                <span class="sidebar-method text-method-${method.toLowerCase()}">${escapeHtml(shortMethod)}</span>
                 <span class="min-w-0 truncate">${escapeHtml(endpoint.summary || endpoint.path)}</span>
             </button>`;
         }).join("")}</nav></div>`;
