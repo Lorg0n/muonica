@@ -15,4 +15,7 @@ hs_err_pid*
 
 # Environment and editor files
 .env
+.env.*
+!.env.example
+.envrc
 .DS_Store
