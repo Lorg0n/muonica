@@ -5,6 +5,7 @@
 ![Java](https://img.shields.io/badge/Java-17%2B-orange)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1.0-6DB33F)
 ![Build](https://img.shields.io/badge/build-Gradle-02303A)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 Muonica is an extensible API documentation library for Spring Boot. It scans Spring MVC applications into a framework-independent model, combines generated API metadata with Markdown written for humans, and exposes both an interactive documentation UI and an OpenAPI 3.1.1 document.
 
@@ -173,3 +174,9 @@ Contributions and improvements are welcome. Before opening a change:
 2. Keep new functionality covered by unit or integration tests where practical.
 3. Follow the existing Java and Kotlin Gradle build conventions.
 4. Use a Conventional Commit message, for example `feat(spring): add custom documentation endpoint support`.
+
+## License
+
+Muonica's code is licensed under the [Apache License, Version 2.0](LICENSE).
+The project name and branding are covered separately by the
+[trademark and branding policy](TRADEMARKS.md).
