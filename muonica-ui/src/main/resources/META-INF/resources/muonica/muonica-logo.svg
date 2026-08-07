@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 212 165" role="img" aria-labelledby="title">
+    <title id="title">Muonica</title>
+    <rect x="0" y="45" width="46" height="120" fill="#F3F5F7"/>
+    <path d="M46 0h35c26.51 0 48 21.49 48 48v117H87V57c0-6.627-5.373-12-12-12H46V0Z" fill="#F3F5F7"/>
+    <path d="M129 0h35c26.51 0 48 21.49 48 48v117h-42V57c0-6.627-5.373-12-12-12h-29V0Z" fill="#F3F5F7"/>
+    <path d="M0 45A45 45 0 0 1 45 0h1v45H0Z" fill="#FF4B3E"/>
+</svg>

@@ -485,9 +485,6 @@ export function renderShell(project, selected, query, menuOpen = false, state = 
     return `<header class="doc-header sticky top-0 z-30 flex items-center justify-between h-16 px-4 lg:px-6 border-b backdrop-blur">
         <div class="flex items-center gap-3">
             <button id="menu-toggle" class="lg:hidden text-ink-400 hover:text-white" aria-label="Toggle navigation" aria-expanded="${menuOpen}"><svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round"/></svg></button>
-            <div class="brand-mark w-8 h-8 rounded-md flex items-center justify-center shrink-0">
-                <svg viewBox="0 0 24 24" class="w-4 h-4 text-white" fill="none"><path d="M4 12c0-4.4 3.6-8 8-8s8 3.6 8 8-3.6 8-8 8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
-            </div>
             <span class="text-white font-semibold tracking-tight text-[15px]">muonica</span>
             <span class="hidden sm:inline-block ml-1 text-[11px] font-medium text-ink-400 border border-ink-700 rounded px-1.5 py-0.5">API</span>
         </div>

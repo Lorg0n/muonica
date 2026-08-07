@@ -9,7 +9,7 @@
     --muonica-text-muted: #6b6b74;
     --muonica-text-subtle: #4a4a52;
     --muonica-white: #f7f7f8;
-    --muonica-brand: #e8543f;
+    --muonica-brand: #ff4b3e;
     --muonica-success: #3ddc97;
     --muonica-info: #7dd3fc;
     --muonica-warning: #fbbf24;
@@ -27,7 +27,7 @@ html { background: var(--muonica-bg); }
 
 body {
     background:
-        radial-gradient(circle at 72% -12%, rgba(232, 84, 63, .075), transparent 28rem),
+        radial-gradient(circle at 72% -12%, rgba(255, 75, 62, .075), transparent 28rem),
         var(--muonica-bg);
     color: var(--muonica-text);
 }
@@ -38,7 +38,7 @@ button, input, [contenteditable="true"] { font: inherit; }
 
 button:focus-visible,
 [contenteditable="true"]:focus-visible {
-    outline: 2px solid rgba(232, 84, 63, .8);
+    outline: 2px solid rgba(255, 75, 62, .8);
     outline-offset: 2px;
 }
 
@@ -51,11 +51,6 @@ button:focus-visible,
 .doc-header {
     background: rgba(10, 10, 11, .86);
     border-color: var(--muonica-border);
-}
-
-.brand-mark {
-    background: var(--muonica-brand);
-    box-shadow: 0 0 0 4px rgba(232, 84, 63, .08);
 }
 
 .doc-nav { border-color: var(--muonica-border); }
@@ -138,7 +133,7 @@ button:focus-visible,
 .method-get { color: var(--muonica-success); background: rgba(61, 220, 151, .1); }
 .method-post { color: #7dd3fc; background: rgba(125, 211, 252, .1); }
 .method-put { color: var(--muonica-warning); background: rgba(251, 191, 36, .1); }
-.method-patch { color: var(--muonica-brand); background: rgba(232, 84, 63, .1); }
+.method-patch { color: var(--muonica-brand); background: rgba(255, 75, 62, .1); }
 .method-delete { color: var(--muonica-danger); background: rgba(248, 113, 113, .1); }
 .method-api { color: var(--muonica-text); background: var(--muonica-surface-hover); }
 
@@ -161,9 +156,9 @@ button:focus-visible,
 .markdown a:hover { color: var(--muonica-white); }
 .markdown ul, .markdown ol { margin: .7rem 0 1rem; padding-left: 1.35rem; }
 .markdown li { padding-left: .2rem; margin: .25rem 0; }
-.markdown blockquote { margin: 1rem 0; padding: .65rem 1rem; color: #d2d2d8; border-left: 2px solid var(--muonica-brand); background: rgba(232, 84, 63, .045); }
+.markdown blockquote { margin: 1rem 0; padding: .65rem 1rem; color: #d2d2d8; border-left: 2px solid var(--muonica-brand); background: rgba(255, 75, 62, .045); }
 .markdown hr { margin: 1.75rem 0; border: 0; border-top: 1px solid var(--muonica-border); }
-.markdown code { color: #f08a79; background: var(--muonica-surface-raised); border-radius: 4px; padding: .12rem .35rem; font-family: 'JetBrains Mono', monospace; font-size: .88em; }
+.markdown code { color: #ff8a7d; background: var(--muonica-surface-raised); border-radius: 4px; padding: .12rem .35rem; font-family: 'JetBrains Mono', monospace; font-size: .88em; }
 .markdown pre { margin: 1rem 0; overflow-x: auto; padding: 1rem 1.1rem; color: #d7d7de; background: var(--muonica-bg); border: 1px solid var(--muonica-border); border-radius: var(--muonica-radius-md); font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.7; }
 .markdown pre code { padding: 0; color: inherit; background: transparent; }
 
@@ -261,10 +256,24 @@ button:focus-visible,
 .auth-field-help { margin-top: .4rem; color: var(--muonica-text-subtle); font-size: 11px; }
 .auth-security-note { margin-top: 1.25rem; padding: .75rem .85rem; color: var(--muonica-text-muted); background: rgba(125, 211, 252, .045); border: 1px solid rgba(125, 211, 252, .15); border-radius: var(--muonica-radius-md); font-size: 11px; line-height: 1.55; }
 .auth-modal-actions { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1.25rem; }
-.auth-clear, .auth-cancel { padding: .55rem .7rem; color: var(--muonica-text-muted); border-radius: var(--muonica-radius-md); font-size: 12px; font-weight: 700; }
+.auth-cancel, .auth-save {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 8.75rem;
+    min-height: 2.5rem;
+    padding: .55rem .7rem;
+    color: var(--muonica-text-muted);
+    border-radius: var(--muonica-radius-md);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+.auth-cancel { width: 5rem; }
+.auth-clear { padding: .55rem .7rem; color: var(--muonica-text-muted); border-radius: var(--muonica-radius-md); font-size: 12px; font-weight: 700; }
 .auth-clear:hover, .auth-cancel:hover { color: var(--muonica-white); background: var(--muonica-surface-hover); }
 .auth-clear:disabled { cursor: not-allowed; opacity: .4; }
-.auth-save { padding: .55rem .7rem; border-radius: var(--muonica-radius-md); }
 
 .request-panel, .response-panel, .diagram-panel { overflow: hidden; }
 .panel-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .7rem .9rem; border-bottom: 1px solid var(--muonica-border); }
@@ -292,7 +301,7 @@ button:focus-visible,
 .diagram-panel { background: rgba(17, 17, 19, .65); border: 1px solid var(--muonica-border); border-radius: var(--muonica-radius-lg); }
 .diagram-source { color: #d5d5dc; background: var(--muonica-bg); }
 .diagram-action { color: var(--muonica-brand); border: 1px solid var(--muonica-border-strong); }
-.diagram-action:hover { color: white; border-color: var(--muonica-brand); background: rgba(232, 84, 63, .08); }
+.diagram-action:hover { color: white; border-color: var(--muonica-brand); background: rgba(255, 75, 62, .08); }
 
 .aside-card { padding: 1.1rem 1.15rem; background: rgba(17, 17, 19, .6); border: 1px solid var(--muonica-border); border-radius: var(--muonica-radius-lg); }
 

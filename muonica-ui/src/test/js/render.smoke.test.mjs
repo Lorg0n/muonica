@@ -71,6 +71,8 @@ test("renders an endpoint as an article flow", () => {
     const selected = { group: project.groups[0], endpoint: project.groups[0].endpoints[0], key: "0:0" };
     const html = renderShell(project, selected, "");
 
+    assert.doesNotMatch(html, /class="brand-logo"/);
+    assert.match(html, />muonica<\/span>/);
     assert.match(html, /class="method-badge[^>]*method-get/);
     assert.match(html, /class="notice-block notice-warning"/);
     assert.match(html, /class="parameter-row"/);
