@@ -4,11 +4,14 @@ import test from "node:test";
 import {
     authorizationForEndpoint,
     clearAuthorization,
+    endpointParametersForRequest,
     loadAuthorization,
     normalizeBearerToken,
-    saveAuthorization
+    saveAuthorization,
+    sendEndpointRequest
 } from "../../main/resources/META-INF/resources/muonica/js/api.js";
 import { curlFor, renderMarkdown, renderShell } from "../../main/resources/META-INF/resources/muonica/js/render.js";
+import { validateParameters } from "../../main/resources/META-INF/resources/muonica/js/features/request.js";
 
 const project = {
     name: "Muonica demo",
@@ -35,6 +38,24 @@ const project = {
                 required: true,
                 description: "Numeric user identifier.",
                 schema: { type: "integer", format: "int64" }
+            }, {
+                name: "includeInactive",
+                location: "QUERY",
+                required: false,
+                description: "Include inactive users.",
+                schema: { type: "boolean" }
+            }, {
+                name: "X-Request-Id",
+                location: "HEADER",
+                required: false,
+                description: "Request correlation id.",
+                schema: { type: "string" }
+            }, {
+                name: "theme",
+                location: "COOKIE",
+                required: false,
+                description: "Preferred theme.",
+                schema: { type: "string" }
             }],
             request: {
                 description: "Send a JSON request to this endpoint.",
@@ -77,9 +98,12 @@ test("renders an endpoint as an article flow", () => {
     assert.match(html, /class="notice-block notice-warning"/);
     assert.doesNotMatch(html, /class="parameter-row"/);
     assert.doesNotMatch(html, /<table/);
-    assert.match(html, /data-path-parameter="id"/);
-    assert.match(html, /class="request-path-row"/);
+    assert.match(html, /data-parameter-key="PATH::id"/);
+    assert.match(html, /class="request-parameter-row"/);
     assert.match(html, /\* required/);
+    assert.match(html, /Additional parameters \(3\)/);
+    assert.doesNotMatch(html, /data-parameter-key="QUERY::includeInactive"/);
+    assert.doesNotMatch(html, /<h2 class="section-title">Parameters<\/h2>/);
     assert.match(html, /data-copy="\/users\/\{id\}"/);
     assert.match(html, /data-preserve-scroll="sidebar-navigation"/);
     assert.match(html, /id="endpoint-url"[^>]*>\/users\/\{id\}</);
@@ -91,14 +115,24 @@ test("renders an endpoint as an article flow", () => {
     const requestIndex = html.indexOf("Request body");
     const responsesIndex = html.indexOf("Responses");
     const diagramIndex = html.indexOf("Diagram");
+    const requestPanelIndex = html.indexOf('<div class="request-panel');
+    const parameterIndex = html.indexOf('data-parameter-key="PATH::id"');
+    const codeHeaderIndex = html.indexOf('<div class="panel-header">', requestPanelIndex);
     assert.ok(securityIndex < requestIndex);
     assert.ok(requestIndex < responsesIndex);
     assert.ok(responsesIndex < diagramIndex);
+    assert.ok(requestPanelIndex < parameterIndex);
+    assert.ok(parameterIndex < codeHeaderIndex);
 
-    const populatedPathHtml = renderShell(project, selected, "", false, { pathValues: { id: "42" } });
+    const populatedPathHtml = renderShell(project, selected, "", false, { parameterValues: { "PATH::id": "42" } });
     assert.match(populatedPathHtml, /id="endpoint-url"[^>]*>\/users\/\{id\}</);
     assert.match(populatedPathHtml, /data-copy="\/users\/\{id\}"/);
-    assert.match(populatedPathHtml, /data-path-parameter="id" value="42"/);
+    assert.match(populatedPathHtml, /data-parameter-key="PATH::id"[^>]*value="42"/);
+
+    const expandedHtml = renderShell(project, selected, "", false, { optionalParametersOpen: true });
+    assert.match(expandedHtml, /data-parameter-key="QUERY::includeInactive"/);
+    assert.match(expandedHtml, /data-parameter-key="HEADER::X-Request-Id"/);
+    assert.match(expandedHtml, /data-parameter-key="COOKIE::theme"/);
 
     const mobileHtml = renderShell(project, selected, "user", true);
     assert.match(mobileHtml, /id="mobile-search"/);
@@ -118,7 +152,7 @@ test("renders global authorization controls without exposing credentials in curl
     assert.match(html, /id="authorization-form"/);
     assert.match(html, /value="secret-token"/);
     assert.doesNotMatch(html, /aria-label="Account"/);
-    const curl = curlFor(project.groups[0].endpoints[0], "application/json", "", { id: "1" }, project);
+    const curl = curlFor(project.groups[0].endpoints[0], "application/json", "", { "PATH::id": "1" }, project);
     assert.match(curl, /\{\{baseUrl\}\}\/users\/1/);
     assert.doesNotMatch(curl, /api\.muonica\.dev/);
     assert.match(curl, /MUONICA_BEARERAUTH/);
@@ -146,6 +180,67 @@ test("builds matching authorization headers and query parameters", () => {
         headers: { Authorization: "Bearer abc123" },
         cookies: []
     });
+});
+
+test("builds endpoint query, header, and cookie parameters from interactive values", () => {
+    const endpoint = project.groups[0].endpoints[0];
+    const values = {
+        "PATH::id": "42",
+        "QUERY::includeInactive": "true",
+        "HEADER::X-Request-Id": "req-7",
+        "COOKIE::theme": "dark"
+    };
+    assert.deepEqual(endpointParametersForRequest(endpoint, values, "/users/42"), {
+        path: "/users/42?includeInactive=true",
+        headers: { "X-Request-Id": "req-7" },
+        cookies: [{ name: "theme", value: "dark" }]
+    });
+    const curl = curlFor(endpoint, "", "", values, project);
+    assert.match(curl, /\/users\/42\?includeInactive=true/);
+    assert.match(curl, /-H \"X-Request-Id: req-7\"/);
+    assert.match(curl, /-b \"theme=dark\"/);
+});
+
+test("blocks an empty required interactive parameter", () => {
+    const input = {
+        dataset: { parameterKey: "PATH::id", parameterRequired: "true" },
+        value: "",
+        classList: { toggle: (name, enabled) => { input.invalid = enabled; } }
+    };
+    const error = { dataset: { parameterError: "PATH::id" }, hidden: true };
+    const root = {
+        querySelectorAll: selector => selector === "[data-parameter-key]" ? [input] : [error]
+    };
+
+    assert.equal(validateParameters(root), false);
+    assert.equal(input.invalid, true);
+    assert.equal(error.hidden, false);
+
+    input.value = "42";
+    assert.equal(validateParameters(root), true);
+    assert.equal(input.invalid, false);
+    assert.equal(error.hidden, true);
+});
+
+test("clears interactive request cookies after the request completes", async () => {
+    const hadDocument = Object.hasOwn(globalThis, "document");
+    const previousDocument = globalThis.document;
+    const hadFetch = Object.hasOwn(globalThis, "fetch");
+    const previousFetch = globalThis.fetch;
+    const cookies = [];
+    try {
+        globalThis.document = { set cookie(value) { cookies.push(value); } };
+        globalThis.fetch = async () => ({ text: async () => "", ok: true, status: 200, statusText: "OK" });
+        await sendEndpointRequest("GET", "/users/42", "", null, project.groups[0].endpoints[0], project, {}, {
+            "COOKIE::theme": "dark"
+        });
+        assert.deepEqual(cookies, ["theme=dark; path=/", "theme=; Max-Age=0; path=/"]);
+    } finally {
+        if (hadDocument) globalThis.document = previousDocument;
+        else delete globalThis.document;
+        if (hadFetch) globalThis.fetch = previousFetch;
+        else delete globalThis.fetch;
+    }
 });
 
 test("persists only non-empty authorization values", () => {

@@ -1,4 +1,5 @@
 import {copyIcon, methodBadge} from "./components/common.js";
+import {parameterKey} from "./api.js";
 import {escapeHtml} from "./lib/html.js";
 
 export {escapeHtml};
@@ -16,10 +17,16 @@ function defaultPathValue(parameter) {
     return `${parameter.name || "value"}_value`;
 }
 
-function pathValue(pathValues, parameter) {
-    return Object.prototype.hasOwnProperty.call(pathValues || {}, parameter.name)
-        ? pathValues[parameter.name]
-        : defaultPathValue(parameter);
+function parameterValue(parameterValues, parameter) {
+    const key = parameterKey(parameter);
+    if (Object.prototype.hasOwnProperty.call(parameterValues || {}, key)) return parameterValues[key];
+    return String(parameter.location || "").toUpperCase() === "PATH" ? defaultPathValue(parameter) : "";
+}
+
+export function pathValuesFor(endpoint, parameterValues = {}) {
+    return Object.fromEntries((endpoint?.parameters || [])
+        .filter(parameter => String(parameter.location || "").toUpperCase() === "PATH")
+        .map(parameter => [parameter.name, parameterValue(parameterValues, parameter)]));
 }
 
 export function resolvePath(path, pathValues = {}) {
@@ -43,13 +50,26 @@ function authCurlValue(scheme) {
             : placeholder;
 }
 
-export function curlFor(endpoint, contentType, body, pathValues = {}, project = {}) {
-    let path = resolvePath(endpoint.path, pathValues);
+export function curlFor(endpoint, contentType, body, parameterValues = {}, project = {}) {
+    let path = resolvePath(endpoint.path, pathValuesFor(endpoint, parameterValues));
     const schemes = Object.fromEntries((project.securitySchemes || []).map(scheme => [scheme.name, scheme]));
     const browserOrigin = globalThis.location?.origin;
     const baseUrl = browserOrigin && browserOrigin !== "null" ? browserOrigin : "{{baseUrl}}";
     const url = () => `${baseUrl}${path}`;
     const lines = [`curl -X ${endpoint.method} ${url()}`];
+    (endpoint.parameters || []).forEach(parameter => {
+        const value = String(parameterValue(parameterValues, parameter) || "").trim();
+        if (!value) return;
+        const location = String(parameter.location || "").toUpperCase();
+        if (location === "QUERY") {
+            path += `${path.includes("?") ? "&" : "?"}${encodeURIComponent(parameter.name)}=${encodeURIComponent(value)}`;
+            lines[0] = `curl -X ${endpoint.method} ${url()}`;
+        } else if (location === "HEADER") {
+            lines.push(`  -H \"${parameter.name}: ${value}\"`);
+        } else if (location === "COOKIE") {
+            lines.push(`  -b \"${parameter.name}=${value}\"`);
+        }
+    });
     (endpoint.securityRequirements || []).forEach(name => {
         const scheme = schemes[name];
         if (!scheme) return;
@@ -123,27 +143,38 @@ function responseExampleForSchema(schema, schemas = {}, depth = 0) {
     return "hello";
 }
 
-function pathParameterInputs(endpoint, pathValues = {}) {
-    const parameters = (endpoint.parameters || []).filter(parameter => parameter.location === "PATH");
-    if (!parameters.length) return "";
-    return `<div class="request-paths">
-        <div class="request-path-heading" aria-hidden="true"><span>Name</span><span>Description</span></div>
-        <div class="request-path-list">
-            ${parameters.map(parameter => `<div class="request-path-row">
-                <div class="request-path-details">
-                    <p class="request-path-name">${escapeHtml(parameter.name)}${parameter.required ? ' <span class="request-path-required">* required</span>' : ""}</p>
-                    <p class="request-path-type">${escapeHtml(schemaType(parameter.schema))}</p>
-                    <p class="request-path-location">(path)</p>
-                </div>
-                <div class="request-path-value">
-                    ${parameter.description ? `<p class="request-path-description">${escapeHtml(parameter.description)}</p>` : ""}
-                    <label>
-                        <span class="sr-only">Value for ${escapeHtml(parameter.name)}</span>
-                        <input data-path-parameter="${escapeHtml(parameter.name)}" value="${escapeHtml(pathValue(pathValues, parameter))}" placeholder="${escapeHtml(parameter.name)}" class="request-path-input" autocomplete="off" aria-label="Value for ${escapeHtml(parameter.name)}">
-                    </label>
-                </div>
-            </div>`).join("")}
+function parameterInput(parameter, parameterValues = {}) {
+    const location = String(parameter.location || "parameter").toLowerCase();
+    const key = parameterKey(parameter);
+    return `<div class="request-parameter-row">
+        <div class="request-parameter-details">
+            <p class="request-parameter-name">${escapeHtml(parameter.name)}${parameter.required ? ' <span class="request-parameter-required">* required</span>' : ""}</p>
+            <p class="request-parameter-type">${escapeHtml(schemaType(parameter.schema))}</p>
+            <p class="request-parameter-location">(${escapeHtml(location)})</p>
         </div>
+        <div class="request-parameter-value">
+            ${parameter.description ? `<p class="request-parameter-description">${escapeHtml(parameter.description)}</p>` : ""}
+            <label>
+                <span class="sr-only">Value for ${escapeHtml(parameter.name)}</span>
+                <input data-parameter-key="${escapeHtml(key)}" data-parameter-required="${parameter.required}" value="${escapeHtml(parameterValue(parameterValues, parameter))}" placeholder="${escapeHtml(parameter.name)}" class="request-parameter-input" autocomplete="off" aria-label="Value for ${escapeHtml(parameter.name)}">
+            </label>
+            <p class="request-parameter-error" data-parameter-error="${escapeHtml(key)}" hidden>Required parameter.</p>
+        </div>
+    </div>`;
+}
+
+function parameterInputs(endpoint, parameterValues = {}, optionalParametersOpen = false) {
+    const parameters = endpoint.parameters || [];
+    if (!parameters.length) return "";
+    const required = parameters.filter(parameter => parameter.required);
+    const optional = parameters.filter(parameter => !parameter.required);
+    return `<div class="request-parameters">
+        <div class="request-parameter-heading" aria-hidden="true"><span>Name</span><span>Description and value</span></div>
+        <div class="request-parameter-list">${required.map(parameter => parameterInput(parameter, parameterValues)).join("")}</div>
+        ${optional.length ? `<div class="request-optional-parameters">
+            <button class="request-optional-toggle" data-optional-parameters-toggle type="button" aria-expanded="${optionalParametersOpen}">Additional parameters (${optional.length})<span aria-hidden="true">${optionalParametersOpen ? "−" : "+"}</span></button>
+            ${optionalParametersOpen ? `<div class="request-parameter-list">${optional.map(parameter => parameterInput(parameter, parameterValues)).join("")}</div>` : ""}
+        </div>` : ""}
     </div>`;
 }
 
@@ -152,7 +183,7 @@ function codePanel(endpoint, project, state = {}) {
     const [contentType, schema] = content[0] || [null, null];
     const defaultCode = schema ? JSON.stringify(exampleForSchema(schema, project.schemas), null, 2) : "";
     const code = state.requestBody ?? defaultCode;
-    const curl = curlFor(endpoint, contentType, code, state.pathValues || {}, project);
+    const curl = curlFor(endpoint, contentType, code, state.parameterValues || {}, project);
     const hasBody = content.length > 0;
     const protectedEndpoint = (endpoint.securityRequirements || []).length > 0;
     const activeTab = state.activeTab === "curl" || !hasBody ? "curl" : "json";
@@ -167,7 +198,7 @@ function codePanel(endpoint, project, state = {}) {
         </div>
 
         <div class="request-panel content-surface">
-            ${pathParameterInputs(endpoint, state.pathValues || {})}
+            ${parameterInputs(endpoint, state.parameterValues || {}, state.optionalParametersOpen)}
             <div class="panel-header">
                 <div class="flex items-center gap-1">
                     ${hasBody ? `<button class="code-tab text-xs font-semibold px-3 py-1.5 rounded-md ${activeTab === "json" ? "code-tab-active" : "text-ink-400 hover:text-white hover:bg-ink-800"}" data-tab="json" type="button">JSON</button>` : ""}
@@ -207,26 +238,6 @@ function codePanel(endpoint, project, state = {}) {
             </div>
         </div>
         <p class="text-xs text-ink-500 mt-3">The response below shows the result returned by your API.</p>
-    </div>`;
-}
-
-function parameterCard(parameters, heading) {
-    if (!parameters.length) return "";
-    return `<div class="parameter-group">
-        <h3 class="parameter-group-title">${escapeHtml(heading)}</h3>
-        <div class="parameter-list content-surface">
-            ${parameters.map(parameter => `<div class="parameter-row">
-                <div>
-                    <p class="parameter-name">${escapeHtml(parameter.name)}</p>
-                    ${parameter.description ? `<p class="parameter-description">${escapeHtml(parameter.description)}</p>` : ""}
-                </div>
-                <div>
-                    <p class="parameter-location">${escapeHtml(String(parameter.location || "parameter").toLowerCase())}</p>
-                    <p class="parameter-type">${escapeHtml(schemaType(parameter.schema))}</p>
-                    <span class="parameter-required ${parameter.required ? "" : "parameter-optional"}">${parameter.required ? "required" : "optional"}</span>
-                </div>
-            </div>`).join("")}
-        </div>
     </div>`;
 }
 
@@ -393,10 +404,8 @@ function securitySection(endpoint, project, block, authorization = {}) {
     </section>`;
 }
 
-function parametersSection(endpoint, block) {
-    const otherParameters = (endpoint.parameters || []).filter(parameter => parameter.location !== "PATH");
-    if (!otherParameters.length) return "";
-    return `<section class="section-block"><div class="section-heading"><h2 class="section-title">Parameters</h2><span class="section-meta">${escapeHtml(originLabel(block))}</span></div><div>${parameterCard(otherParameters, "Query and header parameters")}</div></section>`;
+function parametersSection() {
+    return "";
 }
 
 function genericDocumentationBlock(block) {
@@ -412,7 +421,7 @@ export function documentationBlocks(blocks, endpoint, project, state = {}) {
             const name = block.attributes?.name;
             if (name === "request") return `<section class="section-block">${codePanel(endpoint, project, {...state, pathValues: state.pathValues})}</section>`;
             if (name === "responses") return responseList(endpoint.responses, project.schemas);
-            if (name === "parameters") return parametersSection(endpoint, block);
+            if (name === "parameters") return parametersSection();
             if (name === "security") return securitySection(endpoint, project, block, state.authorization);
         }
         return genericDocumentationBlock(block);
@@ -469,9 +478,7 @@ export function renderShell(project, selected, query, menuOpen = false, state = 
     const groups = project.groups || [];
     const endpoint = selected?.endpoint;
     const title = endpoint ? endpoint.summary || `${endpoint.method} ${endpoint.path}` : project.name || "Muonica";
-    const pathParameters = (endpoint?.parameters || []).filter(parameter => parameter.location === "PATH");
     const description = endpoint?.description || selected?.group.description || project.description;
-    const resolvedPathValues = state.pathValues || Object.fromEntries(pathParameters.map(parameter => [parameter.name, defaultPathValue(parameter)]));
     const endpointPath = endpoint?.path || "";
     const responses = endpoint?.responses || [];
 
@@ -531,7 +538,7 @@ export function renderShell(project, selected, query, menuOpen = false, state = 
 
                 <div class="docs-layout grid grid-cols-1 xl:grid-cols-[minmax(0,850px)_240px] gap-10 lg:gap-14">
                     <article class="docs-article">
-                        ${documentationBlocks(endpoint.documentationBlocks, endpoint, project, {...state, pathValues: resolvedPathValues})}
+                        ${documentationBlocks(endpoint.documentationBlocks, endpoint, project, state)}
                     </article>
                     <aside class="docs-aside hidden xl:block" aria-label="Endpoint details">
                         <div class="aside-card">

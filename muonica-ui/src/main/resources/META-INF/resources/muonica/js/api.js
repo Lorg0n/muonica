@@ -70,12 +70,30 @@ function appendQuery(path, name, value) {
     return `${path}${separator}${encodeURIComponent(name)}=${encodeURIComponent(value)}`;
 }
 
+export function parameterKey(parameter) {
+    return `${String(parameter?.location || "").toUpperCase()}::${parameter?.name || ""}`;
+}
+
+function parameterValue(values, parameter) {
+    return String(values?.[parameterKey(parameter)] || "").trim();
+}
+
 function setCookie(name, value) {
     if (typeof document !== "undefined") {
         try {
             document.cookie = `${encodeURIComponent(name)}=${encodeURIComponent(value)}; path=/`;
         } catch {
             // Cookie auth is best effort because browser policies may reject it.
+        }
+    }
+}
+
+function clearCookie(name) {
+    if (typeof document !== "undefined") {
+        try {
+            document.cookie = `${encodeURIComponent(name)}=; Max-Age=0; path=/`;
+        } catch {
+            // Cookie cleanup is best effort because browser policies may reject it.
         }
     }
 }
@@ -102,6 +120,23 @@ export function authorizationForEndpoint(endpoint, project, values = {}, basePat
     return { path, headers, cookies };
 }
 
+export function endpointParametersForRequest(endpoint, values = {}, basePath = endpoint?.path || "") {
+    let path = basePath;
+    const headers = {};
+    const cookies = [];
+    for (const parameter of endpoint?.parameters || []) {
+        const value = parameterValue(values, parameter);
+        if (!value) continue;
+        const location = String(parameter.location || "").toUpperCase();
+        if (location === "QUERY") path = appendQuery(path, parameter.name, value);
+        else if (location === "HEADER") headers[parameter.name] = value;
+        else if (location === "COOKIE") {
+            cookies.push({ name: parameter.name, value });
+        }
+    }
+    return { path, headers, cookies };
+}
+
 export async function loadProject() {
     const response = await fetch(API_URL, { headers: { Accept: "application/json" } });
     if (!response.ok) {
@@ -110,9 +145,12 @@ export async function loadProject() {
     return response.json();
 }
 
-export async function sendEndpointRequest(method, path, body, contentType, endpoint, project, authorization = {}) {
+export async function sendEndpointRequest(method, path, body, contentType, endpoint, project, authorization = {}, parameterValues = {}) {
     const headers = { Accept: "application/json" };
     const hasBody = body !== undefined && body !== null && body !== "";
+    const requestParameters = endpointParametersForRequest(endpoint, parameterValues, path);
+    path = requestParameters.path || path;
+    Object.assign(headers, requestParameters.headers);
     const requestAuthorization = authorizationForEndpoint(endpoint, project, authorization, path);
     path = requestAuthorization.path || path;
     Object.assign(headers, requestAuthorization.headers);
@@ -123,17 +161,22 @@ export async function sendEndpointRequest(method, path, body, contentType, endpo
         headers["Content-Type"] = contentType;
     }
 
-    const response = await fetch(path, {
-        method,
-        headers,
-        credentials: "same-origin",
-        ...(hasBody ? { body } : {})
-    });
+    requestParameters.cookies.forEach(cookie => setCookie(cookie.name, cookie.value));
+    try {
+        const response = await fetch(path, {
+            method,
+            headers,
+            credentials: "same-origin",
+            ...(hasBody ? { body } : {})
+        });
 
-    return {
-        response,
-        text: await response.text()
-    };
+        return {
+            response,
+            text: await response.text()
+        };
+    } finally {
+        requestParameters.cookies.forEach(cookie => clearCookie(cookie.name));
+    }
 }
 
 export function endpointKey(groupIndex, endpointIndex) {

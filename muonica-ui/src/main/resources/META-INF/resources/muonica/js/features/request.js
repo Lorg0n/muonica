@@ -1,13 +1,27 @@
 import {sendEndpointRequest} from "../api.js";
-import {escapeHtml, highlightedCurl, highlightedJson, curlFor, resolvePath} from "../render.js";
+import {escapeHtml, highlightedCurl, highlightedJson, curlFor, pathValuesFor, resolvePath} from "../render.js";
 
 export const editorText = editor => (editor?.innerText || "").replaceAll("\r\n", "\n");
 
-export function pathValuesFrom(root, state) {
-    const values = {};
-    root.querySelectorAll("[data-path-parameter]").forEach(input => { values[input.dataset.pathParameter] = input.value; });
-    state.pathValues.set(state.selectedKey, values);
+export function parameterValuesFrom(root, state) {
+    const values = {...(state.parameterValues.get(state.selectedKey) || {})};
+    root.querySelectorAll("[data-parameter-key]").forEach(input => { values[input.dataset.parameterKey] = input.value; });
+    state.parameterValues.set(state.selectedKey, values);
     return values;
+}
+
+export function validateParameters(root) {
+    let valid = true;
+    root.querySelectorAll("[data-parameter-key]").forEach(input => {
+        const required = input.dataset.parameterRequired === "true";
+        const missing = required && !input.value.trim();
+        input.classList.toggle("request-parameter-input-error", missing);
+        const error = [...root.querySelectorAll("[data-parameter-error]")]
+            .find(element => element.dataset.parameterError === input.dataset.parameterKey);
+        if (error) error.hidden = !missing;
+        if (missing) valid = false;
+    });
+    return valid;
 }
 
 export function updateCurlPreview(root, state) {
@@ -15,7 +29,7 @@ export function updateCurlPreview(root, state) {
     const editor = root.querySelector("#code-json");
     const curl = root.querySelector("#code-curl");
     if (!endpoint || !curl) return;
-    curl.innerHTML = highlightedCurl(curlFor(endpoint, editor?.dataset.contentType, editor ? editorText(editor) : "", pathValuesFrom(root, state), state.project));
+    curl.innerHTML = highlightedCurl(curlFor(endpoint, editor?.dataset.contentType, editor ? editorText(editor) : "", parameterValuesFrom(root, state), state.project));
 }
 
 export function validateEditor(root) {
@@ -45,6 +59,11 @@ export async function sendRequest(root, state) {
     const button = root.querySelector("#send-btn");
     const panel = root.querySelector("#response-panel");
     if (!endpoint || !button || !panel) return;
+    const parameterValues = parameterValuesFrom(root, state);
+    if (!validateParameters(root)) {
+        root.querySelector(".request-parameter-input-error")?.focus();
+        return;
+    }
     let requestBody;
     const contentType = editor?.dataset.contentType;
     if (editor) {
@@ -61,7 +80,7 @@ export async function sendRequest(root, state) {
     button.innerHTML = '<svg class="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.4" stroke-opacity=".25"/><path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg> Sending…';
     panel.classList.remove("hidden");
     try {
-        const result = await sendEndpointRequest(endpoint.method, resolvePath(endpoint.path, pathValuesFrom(root, state)), requestBody, contentType, endpoint, state.project, state.authorization);
+        const result = await sendEndpointRequest(endpoint.method, resolvePath(endpoint.path, pathValuesFor(endpoint, parameterValues)), requestBody, contentType, endpoint, state.project, state.authorization, parameterValues);
         if (!button.isConnected) return;
         const successful = result.response.ok;
         status.textContent = `${result.response.status} ${result.response.statusText || (successful ? "OK" : "Response")}`;

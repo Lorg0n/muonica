@@ -14,13 +14,15 @@ const state = {
     authorizationModalOpen: false,
     authorization: loadAuthorization(),
     requestBodies: new Map(),
-    pathValues: new Map(),
+    parameterValues: new Map(),
+    optionalParametersOpen: new Map(),
     activeTabs: new Map(),
     selectedEntry() { return allEndpoints(this.project).find(item => item.key === this.selectedKey); },
     selectedState() {
         return {
             requestBody: this.requestBodies.get(this.selectedKey),
-            pathValues: this.pathValues.get(this.selectedKey),
+            parameterValues: this.parameterValues.get(this.selectedKey),
+            optionalParametersOpen: this.optionalParametersOpen.get(this.selectedKey) || false,
             activeTab: this.activeTabs.get(this.selectedKey) || "json",
             authorization: this.authorization,
             authorizationModalOpen: this.authorizationModalOpen
@@ -81,7 +83,7 @@ root.addEventListener("input", event => {
         validateEditor(root);
         updateCurlPreview(root, state);
     }
-    if (target.matches("[data-path-parameter]")) updateCurlPreview(root, state);
+    if (target.matches("[data-parameter-key]")) updateCurlPreview(root, state);
 });
 
 root.addEventListener("blur", event => {
@@ -103,6 +105,10 @@ root.addEventListener("click", async event => {
     if (!button) return;
     if (button.matches("#menu-toggle")) return store.update({menuOpen: !state.menuOpen});
     if (button.matches(".endpoint-link")) return store.update({selectedKey: button.dataset.endpoint, menuOpen: false});
+    if (button.matches("[data-optional-parameters-toggle]")) {
+        state.optionalParametersOpen.set(state.selectedKey, !state.optionalParametersOpen.get(state.selectedKey));
+        return render();
+    }
     if (button.matches(".code-tab")) return setActiveTab(button);
     if (button.matches("#send-btn")) return sendRequest(root, state);
     if (button.matches("[data-diagram-render]")) return renderDiagram(button);
