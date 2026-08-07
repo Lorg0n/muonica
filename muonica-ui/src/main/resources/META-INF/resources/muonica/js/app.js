@@ -31,7 +31,12 @@ const state = {
 const store = createStore(state, render);
 
 function render() {
+    const scrollPositions = new Map([...root.querySelectorAll("[data-preserve-scroll]")]
+        .map(element => [element.dataset.preserveScroll, element.scrollTop]));
     root.innerHTML = renderShell(state.project, state.selectedEntry(), state.query, state.menuOpen, state.selectedState());
+    root.querySelectorAll("[data-preserve-scroll]").forEach(element => {
+        element.scrollTop = scrollPositions.get(element.dataset.preserveScroll) || 0;
+    });
 }
 
 function updateSearch(input) {

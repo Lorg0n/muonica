@@ -500,7 +500,7 @@ export function renderShell(project, selected, query, menuOpen = false, state = 
             ${schemes.length ? `<button id="authorize-btn" class="authorize-button ${configuredSchemes ? "authorize-button-ready" : ""}" type="button" aria-haspopup="dialog" aria-expanded="${Boolean(state.authorizationModalOpen)}">${escapeHtml(authorizationLabel)}</button>` : ""}
         </div>
     </header>
-    ${menuOpen ? `<div class="fixed inset-x-0 top-16 z-30 max-h-[calc(100vh-64px)] overflow-y-auto border-b border-ink-800 bg-ink-950 p-6 lg:hidden">
+    ${menuOpen ? `<div data-preserve-scroll="mobile-navigation" class="fixed inset-x-0 top-16 z-30 max-h-[calc(100vh-64px)] overflow-y-auto border-b border-ink-800 bg-ink-950 p-6 lg:hidden">
         <label class="flex items-center gap-2 w-full bg-ink-900 border border-ink-800 rounded-lg px-3 py-2 text-ink-400 mb-6">
             <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3" stroke-linecap="round"/></svg>
             <input id="mobile-search" class="docs-search-input w-full bg-transparent text-sm outline-none placeholder:text-ink-500 text-white" dir="ltr" placeholder="Search documentation" value="${escapeHtml(query)}" autocomplete="off">
@@ -511,7 +511,7 @@ export function renderShell(project, selected, query, menuOpen = false, state = 
     ${authorizationModal(project, state)}
 
     <div class="flex">
-        <aside class="hidden lg:block doc-nav w-72 shrink-0 border-r border-ink-800 h-[calc(100vh-64px)] sticky top-16 overflow-y-auto px-5 py-8">
+        <aside data-preserve-scroll="sidebar-navigation" class="hidden lg:block doc-nav w-72 shrink-0 border-r border-ink-800 h-[calc(100vh-64px)] sticky top-16 overflow-y-auto px-5 py-8">
             <p class="eyebrow mb-3">Documentation</p>
             <nav id="sidebar" aria-label="API navigation">${renderNavigation(groups, selected?.key, query)}</nav>
         </aside>

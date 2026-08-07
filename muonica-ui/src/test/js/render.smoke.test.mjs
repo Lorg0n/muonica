@@ -81,6 +81,7 @@ test("renders an endpoint as an article flow", () => {
     assert.match(html, /class="request-path-row"/);
     assert.match(html, /\* required/);
     assert.match(html, /data-copy="\/users\/\{id\}"/);
+    assert.match(html, /data-preserve-scroll="sidebar-navigation"/);
     assert.match(html, /id="endpoint-url"[^>]*>\/users\/\{id\}</);
     assert.doesNotMatch(html, /Path parameters/);
     assert.match(html, /id="code-curl"/);
@@ -101,6 +102,7 @@ test("renders an endpoint as an article flow", () => {
 
     const mobileHtml = renderShell(project, selected, "user", true);
     assert.match(mobileHtml, /id="mobile-search"/);
+    assert.match(mobileHtml, /data-preserve-scroll="mobile-navigation"/);
     assert.match(mobileHtml, /aria-expanded="true"/);
 });
 
