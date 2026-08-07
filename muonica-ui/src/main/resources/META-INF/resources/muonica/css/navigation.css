@@ -1,0 +1,7 @@
+.endpoint-link, .copy-code, .copy-response, .code-tab, .diagram-action { transition: color .15s ease, background-color .15s ease, border-color .15s ease, transform .15s ease; }
+.sidebar-method { margin-top: 4px; min-width: 2.2rem; font-size: 11px; line-height: 1; font-family: 'JetBrains Mono', monospace; font-weight: 600; letter-spacing: .03em; text-align: left; flex-shrink: 0; }
+.sidebar-method-path-only { margin-top: 0; }
+.sidebar-endpoint-path { margin-top: 3px; color: var(--muonica-text-muted); font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 400; line-height: 1.35; }
+.sidebar-endpoint-title { color: inherit; font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: inherit; line-height: 1.45; }
+.endpoint-link[aria-current="page"] .sidebar-endpoint-path { color: var(--muonica-text); }
+.text-method-get { color: var(--muonica-success); }.text-method-post { color: #7dd3fc; }.text-method-put { color: var(--muonica-warning); }.text-method-patch { color: var(--muonica-brand); }.text-method-delete { color: var(--muonica-danger); }.text-method-api { color: var(--muonica-text-muted); }

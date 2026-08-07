@@ -1,0 +1,15 @@
+.doc-header { background: rgba(10, 10, 11, .86); border-color: var(--muonica-border); }
+.doc-nav { border-color: var(--muonica-border); }
+.doc-nav::-webkit-scrollbar { width: 6px; }
+.doc-nav::-webkit-scrollbar-thumb { background: var(--muonica-border); border-radius: 999px; }
+.docs-search-input { direction: ltr; text-align: left; unicode-bidi: isolate; }
+.docs-main { width: 100%; }
+.docs-layout { align-items: start; }
+.docs-article { min-width: 0; max-width: 850px; }
+.docs-aside { position: sticky; top: 6.5rem; margin-top: 3rem; }
+.eyebrow { color: var(--muonica-text-muted); font-size: 11px; font-weight: 700; letter-spacing: .12em; line-height: 1.4; text-transform: uppercase; }
+.endpoint-hero { padding-bottom: 2.25rem; border-bottom: 1px solid rgba(38, 38, 43, .72); }
+.endpoint-title { max-width: 760px; text-wrap: balance; }
+.endpoint-description { max-width: 680px; }
+.aside-card { padding: 1.1rem 1.15rem; background: rgba(17, 17, 19, .6); border: 1px solid var(--muonica-border); border-radius: var(--muonica-radius-lg); }
+@media (max-width: 1279px) { .docs-aside { position: static; margin-top: 0; } }

@@ -1,0 +1,29 @@
+:root {
+    --muonica-bg: #0a0a0b;
+    --muonica-surface: #111113;
+    --muonica-surface-raised: #17171a;
+    --muonica-surface-hover: #1c1c20;
+    --muonica-border: #26262b;
+    --muonica-border-strong: #333338;
+    --muonica-text: #b4b4bc;
+    --muonica-text-muted: #6b6b74;
+    --muonica-text-subtle: #4a4a52;
+    --muonica-white: #f7f7f8;
+    --muonica-brand: #ff4b3e;
+    --muonica-success: #3ddc97;
+    --muonica-info: #7dd3fc;
+    --muonica-warning: #fbbf24;
+    --muonica-danger: #f87171;
+    --muonica-radius-sm: 6px;
+    --muonica-radius-md: 8px;
+    --muonica-radius-lg: 12px;
+    --muonica-radius-xl: 16px;
+    --muonica-shadow: 0 12px 40px rgba(0, 0, 0, .18);
+}
+
+* { box-sizing: border-box; }
+html { background: var(--muonica-bg); }
+body { background: radial-gradient(circle at 72% -12%, rgba(255, 75, 62, .075), transparent 28rem), var(--muonica-bg); color: var(--muonica-text); }
+::selection { background: var(--muonica-brand); color: white; }
+button, input, [contenteditable="true"] { font: inherit; }
+button:focus-visible, [contenteditable="true"]:focus-visible { outline: 2px solid rgba(255, 75, 62, .8); outline-offset: 2px; }
