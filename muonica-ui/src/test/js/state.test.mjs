@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {createStore} from "../../main/resources/META-INF/resources/muonica/js/state/store.js";
+import {createStore} from "../../main/resources/META-INF/muonica/js/state/store.js";
 
 test("updates shared state without replacing feature collections", () => {
     const bodies = new Map([["0:0", "{}"]]);

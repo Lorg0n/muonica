@@ -9,9 +9,9 @@ import {
     normalizeBearerToken,
     saveAuthorization,
     sendEndpointRequest
-} from "../../main/resources/META-INF/resources/muonica/js/api.js";
-import { curlFor, pathValuesFor, renderMarkdown, renderShell } from "../../main/resources/META-INF/resources/muonica/js/render.js";
-import { validateParameters } from "../../main/resources/META-INF/resources/muonica/js/features/request.js";
+} from "../../main/resources/META-INF/muonica/js/api.js";
+import { curlFor, pathValuesFor, renderMarkdown, renderShell } from "../../main/resources/META-INF/muonica/js/render.js";
+import { validateParameters } from "../../main/resources/META-INF/muonica/js/features/request.js";
 
 const project = {
     name: "Muonica demo",

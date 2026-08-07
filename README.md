@@ -64,15 +64,25 @@ Start the reference Spring Boot application with:
 ./gradlew :muonica-demo:bootRun
 ```
 
-Once the application starts, open [http://localhost:8080/muonica](http://localhost:8080/muonica) to view the generated documentation.
+Once the application starts, open [http://localhost:8080/docs](http://localhost:8080/docs) to view the generated documentation.
 
 The demo also exposes the underlying representations:
 
 | Endpoint | Description |
 | --- | --- |
-| `/muonica` | Redirects to the documentation UI. |
-| `/muonica/api` | Returns the Muonica JSON model. |
-| `/muonica/openapi.json` | Returns the generated OpenAPI 3.1.1 document. |
+| `/docs` | Redirects to the documentation UI. |
+| `/docs/api` | Returns the Muonica JSON model. |
+| `/docs/openapi.json` | Returns the generated OpenAPI 3.1.1 document. |
+
+Configure another base path when needed:
+
+```yaml
+muonica:
+  web:
+    path: /reference
+```
+
+The UI, JSON model, OpenAPI document, and bundled assets are then served below `/reference`. Leading and trailing slashes are normalized, so `reference/` is equivalent to `/reference` and `/` serves the UI at the application root.
 
 ## Add Muonica to an Application
 

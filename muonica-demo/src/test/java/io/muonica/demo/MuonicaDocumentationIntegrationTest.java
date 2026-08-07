@@ -83,18 +83,21 @@ class MuonicaDocumentationIntegrationTest {
         assertEquals("3.1.1", document.get("openapi"));
         assertTrue(((Map<?, ?>) document.get("paths")).containsKey("/users/{id}"));
         assertTrue(((Map<?, ?>) document.get("components")).containsKey("securitySchemes"));
-        mockMvc.perform(get("/muonica"))
+        mockMvc.perform(get("/docs"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/muonica/index.html"));
-        mockMvc.perform(get("/muonica/index.html"))
+                .andExpect(redirectedUrl("/docs/"));
+        mockMvc.perform(get("/docs/"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("tailwindcss.com")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("./js/app.js")));
-        mockMvc.perform(get("/muonica/js/api.js"))
+        mockMvc.perform(get("/docs/js/api.js"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("const API_URL = \"./api\"")));
-        mockMvc.perform(get("/muonica/js/render.js"))
+        mockMvc.perform(get("/docs/js/render.js"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("href=\"./openapi.json\"")));
+        mockMvc.perform(get("/docs/api")).andExpect(status().isOk());
+        mockMvc.perform(get("/docs/openapi.json")).andExpect(status().isOk());
+        mockMvc.perform(get("/muonica")).andExpect(status().isNotFound());
     }
 }
