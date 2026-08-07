@@ -10,6 +10,99 @@ function schemaType(schema) {
     return [schema.type, schema.format].filter(Boolean).join(" · ") || "object";
 }
 
+function schemaDisplayType(schema) {
+    if (!schema) return "unknown";
+    if (schema.type === "array") return `array<${schemaDisplayType(schema.items)}>`;
+    return schemaType(schema);
+}
+
+function schemaConstraints(schema) {
+    if (!schema) return [];
+    const constraints = [];
+    if (schema.enumValues?.length) constraints.push(`enum: ${schema.enumValues.join(", ")}`);
+    if (schema.minLength !== null && schema.minLength !== undefined) constraints.push(`min length: ${schema.minLength}`);
+    if (schema.maxLength !== null && schema.maxLength !== undefined) constraints.push(`max length: ${schema.maxLength}`);
+    if (schema.pattern) constraints.push(`pattern: ${schema.pattern}`);
+    if (schema.minimum !== null && schema.minimum !== undefined) constraints.push(`min: ${schema.minimum}`);
+    if (schema.maximum !== null && schema.maximum !== undefined) constraints.push(`max: ${schema.maximum}`);
+    return constraints;
+}
+
+function schemaPropertyList(schema, depth = 0) {
+    const properties = Object.entries(schema?.properties || {});
+    if (!properties.length || depth > 7) return "";
+    const required = new Set(schema.requiredProperties || []);
+    return `<ul class="schema-property-list">${properties.map(([name, property]) => {
+        const constraints = schemaConstraints(property);
+        return `<li class="schema-property">
+            <div class="schema-property-row">
+                <code class="schema-property-name">${escapeHtml(name)}</code>
+                <span class="schema-property-type">${escapeHtml(schemaDisplayType(property))}</span>
+                ${required.has(name) ? '<span class="schema-required">required</span>' : ""}
+            </div>
+            ${property.description ? `<p class="schema-property-description">${escapeHtml(property.description)}</p>` : ""}
+            ${constraints.length ? `<p class="schema-constraints">${escapeHtml(constraints.join(" · "))}</p>` : ""}
+            ${schemaPropertyList(property, depth + 1)}
+        </li>`;
+    }).join("")}</ul>`;
+}
+
+function schemaMatches(name, schema, term, depth = 0) {
+    if (!term) return true;
+    if (!schema) return false;
+    if (name.toLowerCase().includes(term)) return true;
+    if (depth > 7) return false;
+    return Object.entries(schema?.properties || {}).some(([propertyName, property]) =>
+        propertyName.toLowerCase().includes(term) || schemaMatches("", property, term, depth + 1))
+        || schemaMatches("", schema?.items, term, depth + 1);
+}
+
+function schemaNavigation(schemas = {}, query = "", state = {}) {
+    const term = query.trim().toLowerCase();
+    const entries = Object.entries(schemas).filter(([name, schema]) => schemaMatches(name, schema, term));
+    if (!entries.length) return "";
+    return `<details class="schemas-section" data-schema-section${state.schemasOpen ? " open" : ""}>
+        <summary><span class="eyebrow">Schemas</span><span class="schemas-count">${entries.length}</span><svg class="schemas-chevron" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg></summary>
+        <div class="schemas-list">${entries.map(([name, schema]) => `<button class="schema-link${state.selectedSchemaName === name ? " schema-link-selected" : ""}" data-schema="${escapeHtml(name)}" type="button"><code>${escapeHtml(name)}</code><span>${escapeHtml(schemaDisplayType(schema))}</span></button>`).join("")}</div>
+    </details>`;
+}
+
+function schemaPage(name, schema, schemas) {
+    const constraints = schemaConstraints(schema);
+    const propertyCount = Object.keys(schema.properties || {}).length;
+    const example = JSON.stringify(exampleForSchema(schema, schemas), null, 2);
+    return `<div class="mx-auto max-w-[1180px]">
+        <div class="endpoint-hero">
+            <p class="eyebrow mb-3">Schema</p>
+            <h1 class="endpoint-title text-4xl lg:text-5xl font-extrabold text-white tracking-tight mb-4">${escapeHtml(name)}</h1>
+            ${schema.description ? `<p class="endpoint-description text-[15px] text-ink-300 leading-7 mb-7">${escapeHtml(schema.description)}</p>` : ""}
+            <div class="schema-page-type" aria-label="Schema type">${escapeHtml(schemaDisplayType(schema))}</div>
+        </div>
+        <div class="docs-layout grid grid-cols-1 xl:grid-cols-[minmax(0,850px)_240px] gap-10 lg:gap-14">
+            <article class="docs-article">
+                <section class="section-block">
+                    <div class="section-heading"><h2 class="section-title">Properties</h2><span class="section-meta">${propertyCount} ${propertyCount === 1 ? "field" : "fields"}</span></div>
+                    <div class="schema-reference content-surface">
+                        ${constraints.length ? `<p class="schema-constraints">${escapeHtml(constraints.join(" · "))}</p>` : ""}
+                        ${schemaPropertyList(schema) || '<p class="text-sm text-ink-400">This schema has no fields.</p>'}
+                    </div>
+                </section>
+                <section class="section-block">
+                    <div class="section-heading"><div><h2 class="section-title">Example</h2><span class="section-meta">JSON</span></div><button class="copy-schema-example copy-code w-7 h-7 flex items-center justify-center rounded-md text-ink-400 hover:text-white hover:bg-ink-800 transition-colors" data-copy="${escapeHtml(example)}" aria-label="Copy schema example" type="button">${copyIcon}</button></div>
+                    <pre class="schema-page-example content-surface" aria-label="Example JSON for ${escapeHtml(name)}">${highlightedJson(example)}</pre>
+                </section>
+            </article>
+            <aside class="docs-aside hidden xl:block" aria-label="Schema details">
+                <div class="aside-card"><p class="eyebrow mb-4">At a glance</p><dl class="space-y-4">
+                    <div><dt class="section-meta">Type</dt><dd class="mono mt-1 text-sm text-white">${escapeHtml(schemaDisplayType(schema))}</dd></div>
+                    <div><dt class="section-meta">Properties</dt><dd class="mt-1 text-sm text-white">${propertyCount}</dd></div>
+                    <div><dt class="section-meta">Reference</dt><dd class="mt-1 text-xs leading-5"><a class="text-brand hover:text-white hover:underline" href="./openapi.json">OpenAPI schema →</a></dd></div>
+                </dl></div>
+            </aside>
+        </div>
+    </div>`;
+}
+
 function defaultPathValue(parameter) {
     if (parameter.schema?.format === "uuid") return "00000000-0000-0000-0000-000000000000";
     const name = (parameter.name || "value").toLowerCase();
@@ -478,6 +571,8 @@ function authorizationModal(project, state = {}) {
 export function renderShell(project, selected, query, menuOpen = false, state = {}) {
     const groups = project.groups || [];
     const endpoint = selected?.endpoint;
+    const selectedSchemaName = state.selectedSchemaName;
+    const selectedSchema = selectedSchemaName ? project.schemas?.[selectedSchemaName] : null;
     const title = endpoint ? endpoint.summary || `${endpoint.method} ${endpoint.path}` : project.name || "Muonica";
     const description = endpoint?.description || selected?.group.description || project.description;
     const endpointPath = endpoint?.path || "";
@@ -513,7 +608,7 @@ export function renderShell(project, selected, query, menuOpen = false, state = 
             <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3" stroke-linecap="round"/></svg>
             <input id="mobile-search" class="docs-search-input w-full bg-transparent text-sm outline-none placeholder:text-ink-500 text-white" dir="ltr" placeholder="Search documentation" value="${escapeHtml(query)}" autocomplete="off">
         </label>
-        <nav aria-label="API navigation">${renderNavigation(groups, selected?.key, query)}</nav>
+        <nav aria-label="API navigation">${renderNavigation(groups, project.schemas, selected?.key, query, state)}</nav>
     </div>` : ""}
 
     ${authorizationModal(project, state)}
@@ -521,7 +616,7 @@ export function renderShell(project, selected, query, menuOpen = false, state = 
     <div class="flex">
         <aside data-preserve-scroll="sidebar-navigation" class="hidden lg:block doc-nav w-72 shrink-0 border-r border-ink-800 h-[calc(100vh-64px)] sticky top-16 overflow-y-auto px-5 py-8">
             <p class="eyebrow mb-3">Documentation</p>
-            <nav id="sidebar" aria-label="API navigation">${renderNavigation(groups, selected?.key, query)}</nav>
+            <nav id="sidebar" aria-label="API navigation">${renderNavigation(groups, project.schemas, selected?.key, query, state)}</nav>
         </aside>
 
         <main class="docs-main flex-1 min-w-0 px-6 lg:px-12 py-10 lg:py-14">
@@ -552,14 +647,14 @@ export function renderShell(project, selected, query, menuOpen = false, state = 
                         </div>
                     </aside>
                 </div>
-            </div>` : renderEmpty(project)}
+            </div>` : selectedSchema ? schemaPage(selectedSchemaName, selectedSchema, project.schemas) : renderEmpty(project)}
         </main>
     </div>`;
 }
 
-function renderNavigation(groups, selectedKey, query) {
+function renderNavigation(groups, schemas, selectedKey, query, state = {}) {
     const term = query.trim().toLowerCase();
-    return groups.map((group, groupIndex) => {
+    const endpointMarkup = groups.map((group, groupIndex) => {
         const endpoints = (group.endpoints || []).filter(endpoint => !term || [endpoint.path, endpoint.summary, endpoint.description, group.name].filter(Boolean).join(" ").toLowerCase().includes(term));
         if (!endpoints.length) return "";
         return `<div class="mb-7"><p class="eyebrow mb-2">${escapeHtml(group.name || "API")}</p>
@@ -582,7 +677,11 @@ function renderNavigation(groups, selectedKey, query) {
                 </span>
             </button>`;
         }).join("")}</nav></div>`;
-    }).join("") || `<p class="text-sm text-ink-400">No matching endpoints.</p>`;
+    }).join("");
+    const schemaMarkup = schemaNavigation(schemas, query, state);
+    return endpointMarkup || schemaMarkup
+        ? `${endpointMarkup}${schemaMarkup}`
+        : `<p class="text-sm text-ink-400">No matching documentation.</p>`;
 }
 
 function renderEmpty(project) {

@@ -16,7 +16,24 @@ import { validateParameters } from "../../main/resources/META-INF/resources/muon
 const project = {
     name: "Muonica demo",
     version: "1.0",
-    schemas: {},
+    schemas: {
+        UserResponse: {
+            type: "object",
+            description: "A user returned by the API.",
+            requiredProperties: ["id", "role"],
+            properties: {
+                id: { type: "string", format: "uuid" },
+                role: { type: "string", enumValues: ["ADMIN", "MEMBER"] },
+                addresses: { type: "array", items: { ref: "Address" } }
+            }
+        },
+        Address: {
+            type: "object",
+            properties: {
+                city: { type: "string", minLength: 2, maxLength: 100, pattern: "[A-Za-z ]+" }
+            }
+        }
+    },
     securitySchemes: [{
         name: "bearerAuth",
         type: "HTTP",
@@ -138,6 +155,36 @@ test("renders an endpoint as an article flow", () => {
     assert.match(mobileHtml, /id="mobile-search"/);
     assert.match(mobileHtml, /data-preserve-scroll="mobile-navigation"/);
     assert.match(mobileHtml, /aria-expanded="true"/);
+});
+
+test("renders filterable schemas as navigation links and a dedicated schema reference", () => {
+    const selected = { group: project.groups[0], endpoint: project.groups[0].endpoints[0], key: "0:0" };
+    const initialHtml = renderShell(project, selected, "");
+
+    assert.match(initialHtml, /<details class="schemas-section" data-schema-section>/);
+    assert.match(initialHtml, /class="schema-link" data-schema="UserResponse"/);
+    assert.doesNotMatch(initialHtml, /schema-link-selected/);
+
+    const schemaHtml = renderShell(project, undefined, "", false, {
+        schemasOpen: true,
+        selectedSchemaName: "UserResponse"
+    });
+    assert.match(schemaHtml, /data-schema-section open/);
+    assert.match(schemaHtml, /schema-link schema-link-selected" data-schema="UserResponse"/);
+    assert.match(schemaHtml, /<h1 class="endpoint-title[^>]*>UserResponse<\/h1>/);
+    assert.match(schemaHtml, /array&lt;Address&gt;/);
+    assert.match(schemaHtml, /required/);
+    assert.match(schemaHtml, /enum: ADMIN, MEMBER/);
+    assert.match(schemaHtml, /&quot;role&quot;.*&quot;ADMIN&quot;/);
+    assert.match(schemaHtml, /class="copy-schema-example copy-code[^>]*data-copy="\{[^>]*aria-label="Copy schema example"/);
+    assert.doesNotMatch(schemaHtml, /id="endpoint-url"/);
+
+    const filteredHtml = renderShell(project, selected, "city");
+    assert.match(filteredHtml, /data-schema="Address"/);
+    assert.doesNotMatch(filteredHtml, /data-schema="UserResponse"/);
+
+    const mobileHtml = renderShell(project, selected, "", true);
+    assert.match(mobileHtml, /data-preserve-scroll="mobile-navigation"[\s\S]*data-schema="UserResponse"/);
 });
 
 test("renders scalar response fields when their schemas include empty properties", () => {

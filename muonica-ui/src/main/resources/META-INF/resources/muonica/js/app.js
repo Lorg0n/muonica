@@ -17,6 +17,8 @@ const state = {
     parameterValues: new Map(),
     optionalParametersOpen: new Map(),
     activeTabs: new Map(),
+    schemasOpen: false,
+    selectedSchemaName: undefined,
     selectedEntry() { return allEndpoints(this.project).find(item => item.key === this.selectedKey); },
     selectedState() {
         return {
@@ -24,6 +26,8 @@ const state = {
             parameterValues: this.parameterValues.get(this.selectedKey),
             optionalParametersOpen: this.optionalParametersOpen.get(this.selectedKey) || false,
             activeTab: this.activeTabs.get(this.selectedKey) || "json",
+            schemasOpen: this.schemasOpen,
+            selectedSchemaName: this.selectedSchemaName,
             authorization: this.authorization,
             authorizationModalOpen: this.authorizationModalOpen
         };
@@ -100,11 +104,17 @@ root.addEventListener("blur", event => {
     }
 }, true);
 
+root.addEventListener("toggle", event => {
+    const disclosure = event.target;
+    if (disclosure.matches("[data-schema-section]")) state.schemasOpen = disclosure.open;
+}, true);
+
 root.addEventListener("click", async event => {
     const button = event.target.closest("button");
     if (!button) return;
     if (button.matches("#menu-toggle")) return store.update({menuOpen: !state.menuOpen});
-    if (button.matches(".endpoint-link")) return store.update({selectedKey: button.dataset.endpoint, menuOpen: false});
+    if (button.matches(".endpoint-link")) return store.update({selectedKey: button.dataset.endpoint, selectedSchemaName: undefined, menuOpen: false});
+    if (button.matches(".schema-link")) return store.update({selectedKey: undefined, selectedSchemaName: button.dataset.schema, menuOpen: false});
     if (button.matches("[data-optional-parameters-toggle]")) {
         state.optionalParametersOpen.set(state.selectedKey, !state.optionalParametersOpen.get(state.selectedKey));
         return render();
