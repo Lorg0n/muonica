@@ -56,6 +56,7 @@ public final class DocumentationResolver {
     private List<DocumentationBlock> resolveAnnotation(MuonicaDocumentation annotation, AnnotatedElement source) {
         boolean hasContent = !annotation.content().isBlank();
         boolean hasFile = !annotation.file().isBlank();
+        if (!hasContent && !hasFile && !annotation.inherit()) return List.of();
         String sourceName = sourceName(source);
         if (hasContent == hasFile) {
             throw new DocumentationException("INVALID_SOURCE", sourceName, null,

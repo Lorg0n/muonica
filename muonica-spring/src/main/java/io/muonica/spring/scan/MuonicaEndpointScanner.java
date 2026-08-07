@@ -154,7 +154,11 @@ public final class MuonicaEndpointScanner implements SmartInitializingSingleton 
             responses.put(code, new ApiResponse(code, response.description(), response.body() == Void.class ? Map.of() : Map.of(response.contentType(), schemas.resolve(response.body()))));
         }
         DocumentationResolution endpointDocumentation = documentationResolver.apply(javaMethod);
-        DocumentationResolution composedDocumentation = documentationComposer.compose(projectDocumentation, groupDocumentation, endpointDocumentation);
+        boolean inheritsDocumentation = java.util.stream.Stream.of(javaMethod.getAnnotationsByType(MuonicaDocumentation.class))
+                .allMatch(MuonicaDocumentation::inherit);
+        DocumentationResolution composedDocumentation = documentationComposer.compose(
+                inheritsDocumentation ? projectDocumentation : DocumentationResolution.empty(),
+                inheritsDocumentation ? groupDocumentation : DocumentationResolution.empty(), endpointDocumentation);
         return new ApiEndpoint(method, path, handler.getBeanType().getSimpleName(), javaMethod.getName(),
                 blankToNull(operation == null ? null : operation.summary()), blankToNull(operation == null ? null : operation.description()),
                 parameters, request, List.copyOf(responses.values()), composedDocumentation.blocks(),

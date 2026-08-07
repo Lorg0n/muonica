@@ -49,7 +49,7 @@ class MuonicaDocumentationIntegrationTest {
         assertEquals("Authorization", project.securitySchemes().stream()
                 .filter(scheme -> scheme.name().equals("bearerAuth"))
                 .findFirst().orElseThrow().parameterName());
-        assertTrue(project.groups().stream().flatMap(group -> group.endpoints().stream()).count() >= 16);
+        assertTrue(project.groups().stream().flatMap(group -> group.endpoints().stream()).count() >= 17);
         assertNotNull(project.schemas().get("UserResponse"));
         assertTrue(project.schemas().get("UserResponse").properties().containsKey("role"));
         assertEquals("markdown", project.documentationBlocks().get(0).type());
@@ -65,6 +65,15 @@ class MuonicaDocumentationIntegrationTest {
         assertTrue(getUser.documentationBlocks().stream().anyMatch(block -> block.type().equals("slot")
                 && block.attributes().get("name").equals("parameters")
                 && block.attributes().get("generated").equals(true)));
+        ApiEndpoint undocumentedPreview = project.groups().stream().flatMap(group -> group.endpoints().stream())
+                .filter(endpoint -> endpoint.method().equals("GET") && endpoint.path().equals("/users/{userId}/preview"))
+                .findFirst().orElseThrow();
+        assertEquals("previewUser", undocumentedPreview.handler());
+        assertEquals(List.of("userId"), undocumentedPreview.parameters().stream().map(parameter -> parameter.name()).toList());
+        assertEquals(List.of("request", "responses", "parameters", "security"), undocumentedPreview.documentationBlocks().stream()
+                .map(block -> block.attributes().get("name")).toList());
+        assertTrue(undocumentedPreview.documentationBlocks().stream()
+                .allMatch(block -> block.origin().name().equals("GENERATED")));
     }
 
     @Test

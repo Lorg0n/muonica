@@ -41,6 +41,12 @@ class UserController {
         return new UserResponse(id, "Ada Lovelace", Role.ADMIN);
     }
 
+    @GetMapping("/{userId}/preview")
+    @MuonicaDocumentation(inherit = false)
+    UserResponse previewUser(@PathVariable long userId) {
+        return new UserResponse(userId, "Ada Lovelace", Role.MEMBER);
+    }
+
     @GetMapping
     @MuonicaOperation(summary = "Find users", description = "Searches the demo directory with optional filters and a request correlation id.")
     @MuonicaDocumentation(file = "classpath:/muonica/users/find-users.md")

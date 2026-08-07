@@ -134,6 +134,17 @@ class DocumentationCompositionTest {
                 + "classpath:/duplicate-slots.md:4.", result.warnings().get(0).message());
     }
 
+    @Test
+    void resolverAllowsAnInheritanceOptOutWithoutLocalDocumentation() {
+        MockEnvironment environment = new MockEnvironment();
+        DocumentationResolver resolver = new DocumentationResolver(new DocumentationFileLoader(new DefaultResourceLoader()), parser, environment);
+
+        DocumentationResolution result = resolver.resolve(InheritanceOptOutDocumentationSource.class);
+
+        assertTrue(result.blocks().isEmpty());
+        assertTrue(result.warnings().isEmpty());
+    }
+
     private static DocumentationResolution resolution(DocumentationBlock... blocks) {
         return new DocumentationResolution(List.of(blocks), List.of());
     }
@@ -155,4 +166,7 @@ class DocumentationCompositionTest {
 
     @io.muonica.core.annotation.MuonicaDocumentation(file = "classpath:/duplicate-slots.md")
     private static final class DuplicateSlotDocumentationSource { }
+
+    @io.muonica.core.annotation.MuonicaDocumentation(inherit = false)
+    private static final class InheritanceOptOutDocumentationSource { }
 }

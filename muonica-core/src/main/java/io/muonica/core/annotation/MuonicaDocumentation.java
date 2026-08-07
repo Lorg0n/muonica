@@ -16,6 +16,8 @@ public @interface MuonicaDocumentation {
     String title() default "";
     String language() default "";
     NoticeLevel noticeLevel() default NoticeLevel.INFO;
+    /** Whether documentation inherited from the project and controller should be included. */
+    boolean inherit() default true;
 
     enum Type { MARKDOWN, NOTICE, EXAMPLE, IMAGE, MERMAID }
     enum NoticeLevel { INFO, WARNING, DANGER }
