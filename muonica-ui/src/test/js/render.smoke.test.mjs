@@ -140,6 +140,37 @@ test("renders an endpoint as an article flow", () => {
     assert.match(mobileHtml, /aria-expanded="true"/);
 });
 
+test("renders scalar response fields when their schemas include empty properties", () => {
+    const selected = {
+        group: project.groups[0],
+        endpoint: {
+            ...project.groups[0].endpoints[0],
+            responses: [{
+                statusCode: "200",
+                description: "Order returned",
+                content: {
+                    "application/json": {
+                        type: "object",
+                        properties: {
+                            id: { type: "string", format: "uuid", properties: {} },
+                            total: { type: "number", properties: {} },
+                            paid: { type: "boolean", properties: {} }
+                        }
+                    }
+                }
+            }]
+        },
+        key: "0:0"
+    };
+
+    const html = renderShell(project, selected, "");
+
+    assert.match(html, /<span class="text-sky-300">&quot;id&quot;<\/span>: <span class="text-mint">&quot;hello&quot;<\/span>/);
+    assert.match(html, /<span class="text-sky-300">&quot;total&quot;<\/span>: <span class="text-brand">0<\/span>/);
+    assert.match(html, /<span class="text-sky-300">&quot;paid&quot;<\/span>: <span class="text-brand">true<\/span>/);
+    assert.doesNotMatch(html, /<span class="text-sky-300">&quot;total&quot;<\/span>: \{\}/);
+});
+
 test("renders global authorization controls without exposing credentials in curl", () => {
     const selected = { group: project.groups[0], endpoint: project.groups[0].endpoints[0], key: "0:0" };
     const html = renderShell(project, selected, "", false, {

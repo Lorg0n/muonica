@@ -116,7 +116,7 @@ export function exampleForSchema(schema, schemas = {}, depth = 0) {
         return schemas[name] ? exampleForSchema(schemas[name], schemas, depth + 1) : name;
     }
     if (schema.type === "array") return [exampleForSchema(schema.items, schemas, depth + 1)];
-    if (schema.type === "object" || schema.properties) {
+    if (schema.type === "object" || Object.keys(schema.properties || {}).length > 0) {
         return Object.fromEntries(Object.entries(schema.properties || {})
             .map(([name, child]) => [name, exampleForSchema(child, schemas, depth + 1)]));
     }
@@ -135,7 +135,7 @@ function responseExampleForSchema(schema, schemas = {}, depth = 0) {
         const name = schema.ref.replace(/^.*\//, "");
         return schemas[name] ? responseExampleForSchema(schemas[name], schemas, depth + 1) : null;
     }
-    if (schema.type === "object" || schema.properties) {
+    if (schema.type === "object" || Object.keys(schema.properties || {}).length > 0) {
         return Object.fromEntries(Object.entries(schema.properties || {})
             .map(([name, child]) => [name, responseExampleForSchema(child, schemas, depth + 1)]));
     }
