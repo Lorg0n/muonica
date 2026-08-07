@@ -61,7 +61,10 @@ function authCurlValue(scheme) {
 export function curlFor(endpoint, contentType, body, pathValues = {}, project = {}) {
     let path = resolvePath(endpoint.path, pathValues);
     const schemes = Object.fromEntries((project.securitySchemes || []).map(scheme => [scheme.name, scheme]));
-    const lines = [`curl -X ${endpoint.method} https://api.muonica.dev${path}`];
+    const browserOrigin = globalThis.location?.origin;
+    const baseUrl = browserOrigin && browserOrigin !== "null" ? browserOrigin : "{{baseUrl}}";
+    const url = () => `${baseUrl}${path}`;
+    const lines = [`curl -X ${endpoint.method} ${url()}`];
     (endpoint.securityRequirements || []).forEach(name => {
         const scheme = schemes[name];
         if (!scheme) return;
@@ -70,7 +73,7 @@ export function curlFor(endpoint, contentType, body, pathValues = {}, project = 
         const value = authCurlValue(scheme);
         if (location === "QUERY") {
             path += `${path.includes("?") ? "&" : "?"}${encodeURIComponent(parameterName)}=${value}`;
-            lines[0] = `curl -X ${endpoint.method} https://api.muonica.dev${path}`;
+            lines[0] = `curl -X ${endpoint.method} ${url()}`;
         } else if (location !== "COOKIE") {
             lines.push(`  -H \"${parameterName}: ${value}\"`);
         } else {

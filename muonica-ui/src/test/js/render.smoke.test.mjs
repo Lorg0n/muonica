@@ -109,6 +109,8 @@ test("renders global authorization controls without exposing credentials in curl
     assert.match(html, /value="secret-token"/);
     assert.doesNotMatch(html, /aria-label="Account"/);
     const curl = curlFor(project.groups[0].endpoints[0], "application/json", "", { id: "1" }, project);
+    assert.match(curl, /\{\{baseUrl\}\}\/users\/1/);
+    assert.doesNotMatch(curl, /api\.muonica\.dev/);
     assert.match(curl, /MUONICA_BEARERAUTH/);
     assert.doesNotMatch(curl, /secret-token/);
 });
