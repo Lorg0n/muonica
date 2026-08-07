@@ -11,6 +11,7 @@ function schemaType(schema) {
 }
 
 function defaultPathValue(parameter) {
+    if (parameter.schema?.format === "uuid") return "00000000-0000-0000-0000-000000000000";
     const name = (parameter.name || "value").toLowerCase();
     if (name === "batchid") return "batch_8f2ac1";
     if (name === "id" || name.endsWith("id")) return "1";

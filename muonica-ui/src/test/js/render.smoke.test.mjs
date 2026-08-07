@@ -10,7 +10,7 @@ import {
     saveAuthorization,
     sendEndpointRequest
 } from "../../main/resources/META-INF/resources/muonica/js/api.js";
-import { curlFor, renderMarkdown, renderShell } from "../../main/resources/META-INF/resources/muonica/js/render.js";
+import { curlFor, pathValuesFor, renderMarkdown, renderShell } from "../../main/resources/META-INF/resources/muonica/js/render.js";
 import { validateParameters } from "../../main/resources/META-INF/resources/muonica/js/features/request.js";
 
 const project = {
@@ -157,6 +157,16 @@ test("renders global authorization controls without exposing credentials in curl
     assert.doesNotMatch(curl, /api\.muonica\.dev/);
     assert.match(curl, /MUONICA_BEARERAUTH/);
     assert.doesNotMatch(curl, /secret-token/);
+});
+
+test("uses a valid UUID placeholder for UUID path parameters", () => {
+    const endpoint = {
+        path: "/orders/{id}",
+        parameters: [{ name: "id", location: "PATH", required: true, schema: { type: "string", format: "uuid" } }]
+    };
+
+    assert.deepEqual(pathValuesFor(endpoint), { id: "00000000-0000-0000-0000-000000000000" });
+    assert.match(curlFor(endpoint, "", ""), /\/orders\/00000000-0000-0000-0000-000000000000/);
 });
 
 test("builds matching authorization headers and query parameters", () => {
