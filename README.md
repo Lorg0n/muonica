@@ -56,6 +56,14 @@ To build every module:
 ./gradlew build
 ```
 
+To test only the reusable libraries and collect their JARs in one directory, run:
+
+```bash
+./gradlew buildLibraries
+```
+
+The task runs checks for `muonica-core`, `muonica-openapi`, `muonica-ui`, and `muonica-spring`, then copies their JARs to `build/libs` at the repository root. It does not build the demo application.
+
 ### Run the demo application
 
 Start the reference Spring Boot application with:
