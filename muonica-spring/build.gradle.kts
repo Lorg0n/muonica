@@ -9,6 +9,7 @@ dependencies {
     implementation(project(":muonica-openapi"))
     implementation("org.springframework.boot:spring-boot-autoconfigure")
     implementation("org.springframework:spring-webmvc")
+    implementation("org.springframework.boot:spring-boot-webmvc")
     compileOnly("jakarta.validation:jakarta.validation-api")
     compileOnly("com.fasterxml.jackson.core:jackson-databind")
     testImplementation("org.springframework.boot:spring-boot-starter-test")

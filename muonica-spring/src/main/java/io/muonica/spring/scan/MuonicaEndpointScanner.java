@@ -32,6 +32,7 @@ import java.util.function.Function;
 import org.springframework.context.ApplicationContext;
 import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.boot.SpringBootConfiguration;
+import org.springframework.boot.webmvc.error.ErrorController;
 import org.springframework.core.env.Environment;
 import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.util.ClassUtils;
@@ -91,7 +92,7 @@ public final class MuonicaEndpointScanner implements SmartInitializingSingleton 
         Map<Class<?>, List<ApiEndpoint>> endpoints = new LinkedHashMap<>();
         Map<Class<?>, DocumentationResolution> groupDocumentation = new LinkedHashMap<>();
         handlerMapping.getHandlerMethods().entrySet().stream()
-                .filter(entry -> !entry.getValue().getBeanType().getPackageName().startsWith(MUONICA_PACKAGE))
+                .filter(entry -> shouldDocument(entry.getValue()))
                 .sorted(Comparator.comparing(entry -> entry.getValue().getBeanType().getName()))
                 .forEach(entry -> {
                     Class<?> controller = entry.getValue().getBeanType();
@@ -108,6 +109,12 @@ public final class MuonicaEndpointScanner implements SmartInitializingSingleton 
         String description = metadata != null && !metadata.description().isBlank() ? metadata.description() : null;
         return new ApiProject(name, version, description, groups, projectDocumentation.blocks(), projectDocumentation.warnings(),
                 securitySchemes(projectClass()), schemas.components());
+    }
+
+    private static boolean shouldDocument(HandlerMethod handler) {
+        Class<?> controller = handler.getBeanType();
+        return !controller.getPackageName().startsWith(MUONICA_PACKAGE)
+                && !ErrorController.class.isAssignableFrom(controller);
     }
 
     private ApiGroup group(Class<?> controller, List<ApiEndpoint> endpoints, DocumentationResolution documentation) {
