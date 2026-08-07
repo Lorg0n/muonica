@@ -526,7 +526,7 @@ export function renderShell(project, selected, query, menuOpen = false, state = 
     ${authorizationModal(project, state)}
 
     <div class="flex">
-        <aside class="hidden lg:block doc-nav w-64 shrink-0 border-r border-ink-800 h-[calc(100vh-64px)] sticky top-16 overflow-y-auto px-5 py-8">
+        <aside class="hidden lg:block doc-nav w-72 shrink-0 border-r border-ink-800 h-[calc(100vh-64px)] sticky top-16 overflow-y-auto px-5 py-8">
             <p class="eyebrow mb-3">Documentation</p>
             <nav id="sidebar" aria-label="API navigation">${renderNavigation(groups, selected?.key, query)}</nav>
         </aside>
@@ -579,9 +579,14 @@ function renderNavigation(groups, selectedKey, query) {
             if (method === "PATCH") shortMethod = "PAT";
             if (method === "OPTIONS") shortMethod = "OPT";
 
-            return `<button class="endpoint-link w-full text-left flex items-center gap-3 -mx-3 px-3 py-2 rounded-lg transition-colors ${selected ? "text-white bg-ink-800 font-medium" : "text-ink-400 hover:text-ink-200 hover:bg-ink-900"}" data-endpoint="${key}" ${selected ? 'aria-current="page"' : ""} type="button">
-                <span class="sidebar-method text-method-${method.toLowerCase()}">${escapeHtml(shortMethod)}</span>
-                <span class="min-w-0 truncate">${escapeHtml(endpoint.summary || endpoint.path)}</span>
+            const hasSummary = Boolean(endpoint.summary);
+            return `<button class="endpoint-link w-full text-left flex ${hasSummary ? "items-start" : "items-baseline"} gap-3 -mx-3 px-3 py-2 rounded-lg transition-colors ${selected ? "text-white bg-ink-800 font-medium" : "text-ink-400 hover:text-ink-200 hover:bg-ink-900"}" data-endpoint="${key}" ${selected ? 'aria-current="page"' : ""} type="button">
+                <span class="sidebar-method ${hasSummary ? "" : "sidebar-method-path-only"} text-method-${method.toLowerCase()}">${escapeHtml(shortMethod)}</span>
+                <span class="min-w-0 flex-1">
+                    ${hasSummary
+                        ? `<span class="block truncate">${escapeHtml(endpoint.summary)}</span><code class="sidebar-endpoint-path block truncate">${escapeHtml(endpoint.path)}</code>`
+                        : `<code class="sidebar-endpoint-title block truncate">${escapeHtml(endpoint.path)}</code>`}
+                </span>
             </button>`;
         }).join("")}</nav></div>`;
     }).join("") || `<p class="text-sm text-ink-400">No matching endpoints.</p>`;
