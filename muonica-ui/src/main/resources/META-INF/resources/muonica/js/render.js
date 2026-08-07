@@ -142,12 +142,22 @@ function pathParameterInputs(endpoint, pathValues = {}) {
     const parameters = (endpoint.parameters || []).filter(parameter => parameter.location === "PATH");
     if (!parameters.length) return "";
     return `<div class="request-paths">
-        <p class="request-path-label">Path parameters</p>
-        <div class="grid gap-3 sm:grid-cols-2">
-            ${parameters.map(parameter => `<label>
-                <span class="sr-only">Value for ${escapeHtml(parameter.name)}</span>
-                <input data-path-parameter="${escapeHtml(parameter.name)}" value="${escapeHtml(pathValue(pathValues, parameter))}" class="request-path-input" autocomplete="off" aria-label="Value for ${escapeHtml(parameter.name)}">
-            </label>`).join("")}
+        <div class="request-path-heading" aria-hidden="true"><span>Name</span><span>Description</span></div>
+        <div class="request-path-list">
+            ${parameters.map(parameter => `<div class="request-path-row">
+                <div class="request-path-details">
+                    <p class="request-path-name">${escapeHtml(parameter.name)}${parameter.required ? ' <span class="request-path-required">* required</span>' : ""}</p>
+                    <p class="request-path-type">${escapeHtml(schemaType(parameter.schema))}</p>
+                    <p class="request-path-location">(path)</p>
+                </div>
+                <div class="request-path-value">
+                    ${parameter.description ? `<p class="request-path-description">${escapeHtml(parameter.description)}</p>` : ""}
+                    <label>
+                        <span class="sr-only">Value for ${escapeHtml(parameter.name)}</span>
+                        <input data-path-parameter="${escapeHtml(parameter.name)}" value="${escapeHtml(pathValue(pathValues, parameter))}" placeholder="${escapeHtml(parameter.name)}" class="request-path-input" autocomplete="off" aria-label="Value for ${escapeHtml(parameter.name)}">
+                    </label>
+                </div>
+            </div>`).join("")}
         </div>
     </div>`;
 }
@@ -399,10 +409,9 @@ function securitySection(endpoint, project, block, authorization = {}) {
 }
 
 function parametersSection(endpoint, block) {
-    const pathParameters = (endpoint.parameters || []).filter(parameter => parameter.location === "PATH");
     const otherParameters = (endpoint.parameters || []).filter(parameter => parameter.location !== "PATH");
-    if (!pathParameters.length && !otherParameters.length) return "";
-    return `<section class="section-block"><div class="section-heading"><h2 class="section-title">Parameters</h2><span class="section-meta">${escapeHtml(originLabel(block))}</span></div><div>${parameterCard(pathParameters, "Path parameters")}${parameterCard(otherParameters, "Query and header parameters")}</div></section>`;
+    if (!otherParameters.length) return "";
+    return `<section class="section-block"><div class="section-heading"><h2 class="section-title">Parameters</h2><span class="section-meta">${escapeHtml(originLabel(block))}</span></div><div>${parameterCard(otherParameters, "Query and header parameters")}</div></section>`;
 }
 
 function genericDocumentationBlock(block) {
@@ -478,7 +487,7 @@ export function renderShell(project, selected, query, menuOpen = false, state = 
     const pathParameters = (endpoint?.parameters || []).filter(parameter => parameter.location === "PATH");
     const description = endpoint?.description || selected?.group.description || project.description;
     const resolvedPathValues = state.pathValues || Object.fromEntries(pathParameters.map(parameter => [parameter.name, defaultPathValue(parameter)]));
-    const resolvedPath = endpoint ? resolvePath(endpoint.path, resolvedPathValues) : "";
+    const endpointPath = endpoint?.path || "";
     const responses = endpoint?.responses || [];
 
     const schemes = project.securitySchemes || [];
@@ -530,8 +539,8 @@ export function renderShell(project, selected, query, menuOpen = false, state = 
                     ${description ? `<p class="endpoint-description text-[15px] text-ink-300 leading-7 mb-7">${escapeHtml(description)}</p>` : ""}
                     <div class="endpoint-line" aria-label="API endpoint">
                         ${methodBadge(endpoint.method)}
-                        <code id="endpoint-url" class="endpoint-path mono text-[13px] text-ink-200 px-2 py-1.5 flex-1">${escapeHtml(resolvedPath)}</code>
-                        <button class="copy-code shrink-0 w-8 h-8 flex items-center justify-center rounded-md text-ink-400 hover:text-white hover:bg-ink-800 transition-colors" data-copy="${escapeHtml(resolvedPath)}" aria-label="Copy endpoint path" type="button">${copyIcon}</button>
+                        <code id="endpoint-url" class="endpoint-path mono text-[13px] text-ink-200 px-2 py-1.5 flex-1">${escapeHtml(endpointPath)}</code>
+                        <button class="copy-code shrink-0 w-8 h-8 flex items-center justify-center rounded-md text-ink-400 hover:text-white hover:bg-ink-800 transition-colors" data-copy="${escapeHtml(endpointPath)}" aria-label="Copy endpoint path" type="button">${copyIcon}</button>
                     </div>
                 </div>
 

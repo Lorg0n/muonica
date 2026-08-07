@@ -75,21 +75,29 @@ test("renders an endpoint as an article flow", () => {
     assert.match(html, />muonica<\/span>/);
     assert.match(html, /class="method-badge[^>]*method-get/);
     assert.match(html, /class="notice-block notice-warning"/);
-    assert.match(html, /class="parameter-row"/);
+    assert.doesNotMatch(html, /class="parameter-row"/);
     assert.doesNotMatch(html, /<table/);
     assert.match(html, /data-path-parameter="id"/);
+    assert.match(html, /class="request-path-row"/);
+    assert.match(html, /\* required/);
+    assert.match(html, /data-copy="\/users\/\{id\}"/);
+    assert.match(html, /id="endpoint-url"[^>]*>\/users\/\{id\}</);
+    assert.doesNotMatch(html, /Path parameters/);
     assert.match(html, /id="code-curl"/);
     assert.match(html, /<details class="response-disclosure[^>]*" open>/);
 
     const securityIndex = html.indexOf("Authentication");
-    const parametersIndex = html.indexOf("Parameters");
     const requestIndex = html.indexOf("Request body");
     const responsesIndex = html.indexOf("Responses");
     const diagramIndex = html.indexOf("Diagram");
-    assert.ok(securityIndex < parametersIndex);
-    assert.ok(parametersIndex < requestIndex);
+    assert.ok(securityIndex < requestIndex);
     assert.ok(requestIndex < responsesIndex);
     assert.ok(responsesIndex < diagramIndex);
+
+    const populatedPathHtml = renderShell(project, selected, "", false, { pathValues: { id: "42" } });
+    assert.match(populatedPathHtml, /id="endpoint-url"[^>]*>\/users\/\{id\}</);
+    assert.match(populatedPathHtml, /data-copy="\/users\/\{id\}"/);
+    assert.match(populatedPathHtml, /data-path-parameter="id" value="42"/);
 
     const mobileHtml = renderShell(project, selected, "user", true);
     assert.match(mobileHtml, /id="mobile-search"/);

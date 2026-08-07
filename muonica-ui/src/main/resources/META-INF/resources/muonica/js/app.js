@@ -119,13 +119,7 @@ function validateEditor() {
 }
 
 function updateEndpointPreview() {
-    const endpoint = selectedEndpoint();
-    const endpointUrl = app.querySelector("#endpoint-url");
-    const endpointCopy = app.querySelector(".copy-code:not([data-copy-kind])");
-    if (!endpoint || !endpointUrl) return;
-    const resolved = resolvePath(endpoint.path, currentPathValues());
-    endpointUrl.textContent = resolved;
-    if (endpointCopy) endpointCopy.dataset.copy = resolved;
+    if (!selectedEndpoint()) return;
     updateCurlPreview();
 }
 
