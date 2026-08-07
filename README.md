@@ -10,6 +10,8 @@ Muonica is an extensible API documentation library for Spring Boot. It scans Spr
 
 Muonica's Java model is the source of truth. Spring integration, the UI, and OpenAPI are adapters around that model.
 
+![Demo](docs/demo.png)
+
 ## Features
 
 - Automatic discovery of Spring MVC endpoints, parameters, request and response schemas, validation constraints, multipart parts, and security metadata.
