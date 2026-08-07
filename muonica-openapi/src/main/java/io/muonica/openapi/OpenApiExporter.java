@@ -1,11 +1,11 @@
 package io.muonica.openapi;
 
-import io.muonica.core.model.ApiEndpoint;
-import io.muonica.core.model.ApiParameter;
-import io.muonica.core.model.ApiProject;
-import io.muonica.core.model.ApiResponse;
-import io.muonica.core.model.ApiSchema;
-import io.muonica.core.model.ApiSecurityScheme;
+import io.muonica.core.model.api.ApiEndpoint;
+import io.muonica.core.model.api.ApiParameter;
+import io.muonica.core.model.api.ApiProject;
+import io.muonica.core.model.api.ApiResponse;
+import io.muonica.core.model.api.ApiSchema;
+import io.muonica.core.model.security.ApiSecurityScheme;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;

@@ -1,4 +1,6 @@
-package io.muonica.core.model;
+package io.muonica.core.model.security;
+
+import io.muonica.core.model.api.ApiParameter;
 
 /** A security scheme declared by an API project. */
 public record ApiSecurityScheme(

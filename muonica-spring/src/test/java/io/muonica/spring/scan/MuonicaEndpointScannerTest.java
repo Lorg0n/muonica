@@ -4,8 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import io.muonica.core.annotation.MuonicaDocumentation;
-import io.muonica.core.annotation.MuonicaProject;
+import io.muonica.core.annotation.api.MuonicaProject;
+import io.muonica.core.annotation.documentation.MuonicaDocumentation;
 import io.muonica.spring.documentation.DocumentationResolution;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Method;

@@ -1,5 +1,7 @@
-package io.muonica.core.model;
+package io.muonica.core.model.api;
 
+import io.muonica.core.model.documentation.DocumentationBlock;
+import io.muonica.core.model.documentation.DocumentationWarning;
 import java.util.List;
 
 /** A single HTTP operation. */

@@ -1,6 +1,6 @@
-package io.muonica.core.annotation;
+package io.muonica.core.annotation.security;
 
-import io.muonica.core.model.ApiParameter;
+import io.muonica.core.model.api.ApiParameter;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Repeatable;
 import java.lang.annotation.Retention;

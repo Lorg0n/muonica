@@ -1,21 +1,21 @@
 package io.muonica.spring.scan;
 
-import io.muonica.core.annotation.MuonicaDocumentation;
-import io.muonica.core.annotation.MuonicaBearerAuth;
-import io.muonica.core.annotation.MuonicaGroup;
-import io.muonica.core.annotation.MuonicaOperation;
-import io.muonica.core.annotation.MuonicaProject;
-import io.muonica.core.annotation.MuonicaResponse;
-import io.muonica.core.annotation.MuonicaSecurityRequirement;
-import io.muonica.core.annotation.MuonicaSecurityScheme;
-import io.muonica.core.model.ApiEndpoint;
-import io.muonica.core.model.ApiGroup;
-import io.muonica.core.model.ApiParameter;
-import io.muonica.core.model.ApiProject;
-import io.muonica.core.model.ApiRequest;
-import io.muonica.core.model.ApiResponse;
-import io.muonica.core.model.ApiSchema;
-import io.muonica.core.model.ApiSecurityScheme;
+import io.muonica.core.annotation.api.MuonicaGroup;
+import io.muonica.core.annotation.api.MuonicaOperation;
+import io.muonica.core.annotation.api.MuonicaProject;
+import io.muonica.core.annotation.api.MuonicaResponse;
+import io.muonica.core.annotation.documentation.MuonicaDocumentation;
+import io.muonica.core.annotation.security.MuonicaBearerAuth;
+import io.muonica.core.annotation.security.MuonicaSecurityRequirement;
+import io.muonica.core.annotation.security.MuonicaSecurityScheme;
+import io.muonica.core.model.api.ApiEndpoint;
+import io.muonica.core.model.api.ApiGroup;
+import io.muonica.core.model.api.ApiParameter;
+import io.muonica.core.model.api.ApiProject;
+import io.muonica.core.model.api.ApiRequest;
+import io.muonica.core.model.api.ApiResponse;
+import io.muonica.core.model.api.ApiSchema;
+import io.muonica.core.model.security.ApiSecurityScheme;
 import io.muonica.spring.documentation.DocumentationComposer;
 import io.muonica.spring.documentation.DocumentationFileLoader;
 import io.muonica.spring.documentation.DocumentationResolution;
@@ -193,9 +193,9 @@ public final class MuonicaEndpointScanner implements SmartInitializingSingleton 
         RequestPart annotation = parameter.getAnnotation(RequestPart.class);
         String name = name(annotation.name(), annotation.value(), parameter);
         Map<String, ApiSchema> properties = current == null || current.content().isEmpty() ? new LinkedHashMap<>()
-                : new LinkedHashMap<>(current.content().getOrDefault("multipart/form-data", new ApiSchema("object", null, Map.of(), null)).properties());
+                : new LinkedHashMap<>(current.content().getOrDefault("multipart/form-data", ApiSchema.object()).properties());
         properties.put(name, schemas.resolve(parameter.getParameterizedType(), parameter));
-        ApiSchema schema = new ApiSchema("object", null, null, null, properties, List.of(name), null, List.of(), null, null, null, null, null);
+        ApiSchema schema = ApiSchema.object(properties, List.of(name));
         return new ApiRequest(annotation.required(), null, Map.of("multipart/form-data", schema));
     }
 
@@ -233,7 +233,7 @@ public final class MuonicaEndpointScanner implements SmartInitializingSingleton 
         java.util.stream.Stream<ApiSecurityScheme> bearer = java.util.stream.Stream.of(source.getAnnotationsByType(MuonicaBearerAuth.class))
                 .map(annotation -> new ApiSecurityScheme(
                         annotation.name(), ApiSecurityScheme.Type.HTTP, "bearer", annotation.bearerFormat(), annotation.parameterName(),
-                        io.muonica.core.model.ApiParameter.ParameterLocation.HEADER));
+                        ApiParameter.ParameterLocation.HEADER));
         return java.util.stream.Stream.concat(configured, bearer).distinct().toList();
     }
 

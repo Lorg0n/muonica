@@ -1,7 +1,7 @@
 package io.muonica.spring.documentation;
 
-import io.muonica.core.model.DocumentationBlock;
-import io.muonica.core.model.DocumentationWarning;
+import io.muonica.core.model.documentation.DocumentationBlock;
+import io.muonica.core.model.documentation.DocumentationWarning;
 import java.util.List;
 
 /** Raw documentation blocks and non-fatal diagnostics for one annotated source. */

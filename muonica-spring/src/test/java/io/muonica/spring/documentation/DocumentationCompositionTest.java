@@ -4,9 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.muonica.core.model.DocumentationBlock;
-import io.muonica.core.model.DocumentationOrigin;
-import io.muonica.core.model.DocumentationWarning;
+import io.muonica.core.model.documentation.DocumentationBlock;
+import io.muonica.core.model.documentation.DocumentationOrigin;
+import io.muonica.core.model.documentation.DocumentationWarning;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -161,12 +161,12 @@ class DocumentationCompositionTest {
         return new DocumentationBlock("slot", "", Map.of("name", name, "generated", false, "source", source, "line", line));
     }
 
-    @io.muonica.core.annotation.MuonicaDocumentation(file = "classpath:/missing-doc.md")
+    @io.muonica.core.annotation.documentation.MuonicaDocumentation(file = "classpath:/missing-doc.md")
     private static final class MissingDocumentationSource { }
 
-    @io.muonica.core.annotation.MuonicaDocumentation(file = "classpath:/duplicate-slots.md")
+    @io.muonica.core.annotation.documentation.MuonicaDocumentation(file = "classpath:/duplicate-slots.md")
     private static final class DuplicateSlotDocumentationSource { }
 
-    @io.muonica.core.annotation.MuonicaDocumentation(inherit = false)
+    @io.muonica.core.annotation.documentation.MuonicaDocumentation(inherit = false)
     private static final class InheritanceOptOutDocumentationSource { }
 }

@@ -1,6 +1,6 @@
 package io.muonica.spring.web;
 
-import io.muonica.core.model.ApiProject;
+import io.muonica.core.model.api.ApiProject;
 import io.muonica.openapi.OpenApiExporter;
 import io.muonica.spring.scan.MuonicaEndpointScanner;
 import java.util.Map;

@@ -1,8 +1,8 @@
 package io.muonica.spring.documentation;
 
-import io.muonica.core.annotation.MuonicaDocumentation;
-import io.muonica.core.model.DocumentationBlock;
-import io.muonica.core.model.DocumentationWarning;
+import io.muonica.core.annotation.documentation.MuonicaDocumentation;
+import io.muonica.core.model.documentation.DocumentationBlock;
+import io.muonica.core.model.documentation.DocumentationWarning;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Method;
 import java.util.ArrayList;

@@ -1,4 +1,4 @@
-package io.muonica.core.model;
+package io.muonica.core.model.documentation;
 
 import java.util.Map;
 

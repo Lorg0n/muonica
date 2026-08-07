@@ -1,8 +1,8 @@
 package io.muonica.spring.documentation;
 
-import io.muonica.core.model.DocumentationBlock;
-import io.muonica.core.model.DocumentationOrigin;
-import io.muonica.core.model.DocumentationWarning;
+import io.muonica.core.model.documentation.DocumentationBlock;
+import io.muonica.core.model.documentation.DocumentationOrigin;
+import io.muonica.core.model.documentation.DocumentationWarning;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;

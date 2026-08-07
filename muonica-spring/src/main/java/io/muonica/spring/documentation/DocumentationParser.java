@@ -1,6 +1,6 @@
 package io.muonica.spring.documentation;
 
-import io.muonica.core.model.DocumentationBlock;
+import io.muonica.core.model.documentation.DocumentationBlock;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;

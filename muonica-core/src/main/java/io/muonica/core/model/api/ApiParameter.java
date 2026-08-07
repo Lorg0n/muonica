@@ -1,4 +1,4 @@
-package io.muonica.core.model;
+package io.muonica.core.model.api;
 
 public record ApiParameter(String name, ParameterLocation location, boolean required, String description, ApiSchema schema) {
     public enum ParameterLocation { PATH, QUERY, HEADER, COOKIE }

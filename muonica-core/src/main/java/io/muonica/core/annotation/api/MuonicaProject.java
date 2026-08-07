@@ -1,4 +1,4 @@
-package io.muonica.core.annotation;
+package io.muonica.core.annotation.api;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -7,7 +7,8 @@ import java.lang.annotation.Target;
 
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
-public @interface MuonicaGroup {
-    String name() default "";
+public @interface MuonicaProject {
+    String title() default "";
+    String version() default "";
     String description() default "";
 }

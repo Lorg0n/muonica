@@ -1,6 +1,6 @@
 package io.muonica.spring.scan;
 
-import io.muonica.core.model.ApiSchema;
+import io.muonica.core.model.api.ApiSchema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -52,29 +52,29 @@ final class SchemaResolver {
                 return baseSchema(parameterizedType.getActualTypeArguments()[0]);
             }
             if (raw instanceof Class<?> rawClass && Collection.class.isAssignableFrom(rawClass)) {
-                return schema("array", null, null, Map.of(), List.of(), baseSchema(parameterizedType.getActualTypeArguments()[0]), List.of());
+                return ApiSchema.array(baseSchema(parameterizedType.getActualTypeArguments()[0]));
             }
             if (raw instanceof Class<?> rawClass && Map.class.isAssignableFrom(rawClass)) {
-                return schema("object", null, null, Map.of(), List.of(), null, List.of());
+                return ApiSchema.object();
             }
             return baseSchema(raw);
         }
         if (type instanceof GenericArrayType arrayType) {
-            return schema("array", null, null, Map.of(), List.of(), baseSchema(arrayType.getGenericComponentType()), List.of());
+            return ApiSchema.array(baseSchema(arrayType.getGenericComponentType()));
         }
-        if (!(type instanceof Class<?> clazz)) return schema("object", null, null, Map.of(), List.of(), null, List.of());
-        if (clazz.isArray()) return schema("array", null, null, Map.of(), List.of(), baseSchema(clazz.getComponentType()), List.of());
-        if (clazz == String.class || clazz == Character.class || clazz == char.class) return schema("string", null, null, Map.of(), List.of(), null, List.of());
-        if (clazz == UUID.class) return schema("string", "uuid", null, Map.of(), List.of(), null, List.of());
-        if (clazz == LocalDate.class) return schema("string", "date", null, Map.of(), List.of(), null, List.of());
-        if (clazz == LocalDateTime.class || clazz == OffsetDateTime.class || clazz == java.time.Instant.class) return schema("string", "date-time", null, Map.of(), List.of(), null, List.of());
-        if (clazz == boolean.class || clazz == Boolean.class) return schema("boolean", null, null, Map.of(), List.of(), null, List.of());
-        if (clazz == byte.class || clazz == Byte.class || clazz == short.class || clazz == Short.class || clazz == int.class || clazz == Integer.class) return schema("integer", "int32", null, Map.of(), List.of(), null, List.of());
-        if (clazz == long.class || clazz == Long.class || clazz == java.math.BigInteger.class) return schema("integer", "int64", null, Map.of(), List.of(), null, List.of());
-        if (Number.class.isAssignableFrom(clazz) || clazz == float.class || clazz == double.class) return schema("number", null, null, Map.of(), List.of(), null, List.of());
-        if (clazz == MultipartFile.class) return schema("string", "binary", null, Map.of(), List.of(), null, List.of());
-        if (clazz == Void.class || clazz == void.class) return schema(null, null, null, Map.of(), List.of(), null, List.of());
-        if (clazz.isEnum()) return schema("string", null, null, Map.of(), List.of(), null,
+        if (!(type instanceof Class<?> clazz)) return ApiSchema.object();
+        if (clazz.isArray()) return ApiSchema.array(baseSchema(clazz.getComponentType()));
+        if (clazz == String.class || clazz == Character.class || clazz == char.class) return ApiSchema.scalar("string", null);
+        if (clazz == UUID.class) return ApiSchema.scalar("string", "uuid");
+        if (clazz == LocalDate.class) return ApiSchema.scalar("string", "date");
+        if (clazz == LocalDateTime.class || clazz == OffsetDateTime.class || clazz == java.time.Instant.class) return ApiSchema.scalar("string", "date-time");
+        if (clazz == boolean.class || clazz == Boolean.class) return ApiSchema.scalar("boolean", null);
+        if (clazz == byte.class || clazz == Byte.class || clazz == short.class || clazz == Short.class || clazz == int.class || clazz == Integer.class) return ApiSchema.scalar("integer", "int32");
+        if (clazz == long.class || clazz == Long.class || clazz == java.math.BigInteger.class) return ApiSchema.scalar("integer", "int64");
+        if (Number.class.isAssignableFrom(clazz) || clazz == float.class || clazz == double.class) return ApiSchema.scalar("number", null);
+        if (clazz == MultipartFile.class) return ApiSchema.scalar("string", "binary");
+        if (clazz == Void.class || clazz == void.class) return ApiSchema.empty();
+        if (clazz.isEnum()) return ApiSchema.enumeration("string",
                 List.of(clazz.getEnumConstants()).stream().map(value -> ((Enum<?>) value).name()).toList());
         return componentReference(clazz);
     }
@@ -82,10 +82,10 @@ final class SchemaResolver {
     private ApiSchema componentReference(Class<?> type) {
         String name = names.computeIfAbsent(type, this::componentName);
         if (!components.containsKey(name)) {
-            components.put(name, schema("object", null, null, Map.of(), List.of(), null, List.of()));
+            components.put(name, ApiSchema.object());
             components.put(name, component(type));
         }
-        return schema(null, null, name, Map.of(), List.of(), null, List.of());
+        return ApiSchema.reference(name);
     }
 
     private String componentName(Class<?> type) {
@@ -110,7 +110,7 @@ final class SchemaResolver {
                 if (isRequired(field)) required.add(field.getName());
             }
         }
-        return schema("object", null, null, properties, required, null, List.of());
+        return ApiSchema.object(properties, required);
     }
 
     private ApiSchema withConstraints(ApiSchema schema, AnnotatedElement source) {
@@ -127,16 +127,10 @@ final class SchemaResolver {
         if (min != null) minimum = min.value();
         Max max = source.getAnnotation(Max.class);
         if (max != null) maximum = max.value();
-        return new ApiSchema(schema.type(), schema.format(), schema.ref(), schema.description(), schema.properties(),
-                schema.requiredProperties(), schema.items(), schema.enumValues(), minLength, maxLength, pattern, minimum, maximum);
+        return schema.withValidationConstraints(minLength, maxLength, pattern, minimum, maximum);
     }
 
     private boolean isRequired(AnnotatedElement source) {
         return source.isAnnotationPresent(NotNull.class) || source.isAnnotationPresent(NotBlank.class) || source.isAnnotationPresent(NotEmpty.class);
-    }
-
-    private static ApiSchema schema(String type, String format, String ref, Map<String, ApiSchema> properties,
-            List<String> required, ApiSchema items, List<String> values) {
-        return new ApiSchema(type, format, ref, null, properties, required, items, values, null, null, null, null, null);
     }
 }

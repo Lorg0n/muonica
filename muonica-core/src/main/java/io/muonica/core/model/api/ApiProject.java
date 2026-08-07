@@ -1,5 +1,8 @@
-package io.muonica.core.model;
+package io.muonica.core.model.api;
 
+import io.muonica.core.model.documentation.DocumentationBlock;
+import io.muonica.core.model.documentation.DocumentationWarning;
+import io.muonica.core.model.security.ApiSecurityScheme;
 import java.util.List;
 import java.util.Map;
 

@@ -1,4 +1,4 @@
-package io.muonica.core.annotation;
+package io.muonica.core.annotation.api;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

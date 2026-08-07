@@ -4,9 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.muonica.core.model.ApiProject;
-import io.muonica.core.model.ApiEndpoint;
-import io.muonica.core.model.DocumentationBlock;
+import io.muonica.core.model.api.ApiEndpoint;
+import io.muonica.core.model.api.ApiProject;
+import io.muonica.core.model.documentation.DocumentationBlock;
 import java.util.List;
 import io.muonica.spring.web.MuonicaDocumentationController;
 import java.util.Map;

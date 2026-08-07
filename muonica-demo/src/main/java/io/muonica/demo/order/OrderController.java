@@ -1,10 +1,10 @@
 package io.muonica.demo.order;
 
-import io.muonica.core.annotation.MuonicaDocumentation;
-import io.muonica.core.annotation.MuonicaGroup;
-import io.muonica.core.annotation.MuonicaOperation;
-import io.muonica.core.annotation.MuonicaResponse;
-import io.muonica.core.annotation.MuonicaSecurityRequirement;
+import io.muonica.core.annotation.api.MuonicaGroup;
+import io.muonica.core.annotation.api.MuonicaOperation;
+import io.muonica.core.annotation.api.MuonicaResponse;
+import io.muonica.core.annotation.documentation.MuonicaDocumentation;
+import io.muonica.core.annotation.security.MuonicaSecurityRequirement;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
