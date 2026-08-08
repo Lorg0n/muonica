@@ -1,6 +1,7 @@
 package io.muonica.demo.report;
 
 import io.muonica.core.annotation.api.MuonicaGroup;
+import io.muonica.core.annotation.api.MuonicaBadge;
 import io.muonica.core.annotation.api.MuonicaOperation;
 import io.muonica.core.annotation.api.MuonicaResponse;
 import io.muonica.core.annotation.documentation.MuonicaDocumentation;
@@ -46,6 +47,7 @@ class ReportController {
     @MuonicaDocumentation(file = "classpath:/muonica/reports/start-export.md")
     @MuonicaResponse(status = 422, description = "The export filters are invalid", body = ReportErrorResponse.class)
     @MuonicaSecurityRequirement("apiKey")
+    @MuonicaBadge("BETA")
     ExportJob startExport(@Valid @RequestBody CreateExportRequest request) {
         return new ExportJob(UUID.fromString("f7c7d0af-3e7c-4cf2-94c0-32c3b89c55a1"), request.format(), ExportStatus.QUEUED,
                 Instant.parse("2026-01-15T09:05:00Z"), "/reports/exports/f7c7d0af-3e7c-4cf2-94c0-32c3b89c55a1");

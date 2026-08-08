@@ -4,6 +4,7 @@ import io.muonica.core.annotation.api.MuonicaGroup;
 import io.muonica.core.annotation.api.MuonicaOperation;
 import io.muonica.core.annotation.api.MuonicaResponse;
 import io.muonica.core.annotation.api.MuonicaAllowedSort;
+import io.muonica.core.annotation.api.MuonicaBadge;
 import io.muonica.core.annotation.documentation.MuonicaDocumentation;
 import io.muonica.core.annotation.security.MuonicaSecurityRequirement;
 import jakarta.validation.Valid;
@@ -84,6 +85,7 @@ class OrderController {
     @MuonicaResponse(status = 404, description = "Order was not found", body = OrderErrorResponse.class)
     @MuonicaResponse(status = 409, description = "The order is already being fulfilled", body = OrderErrorResponse.class)
     @MuonicaSecurityRequirement("bearerAuth")
+    @MuonicaBadge("DEPRECATED")
     void cancelOrder(@PathVariable UUID id) { }
 
     private OrderResponse sampleOrder() {

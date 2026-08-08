@@ -1,4 +1,4 @@
-import {copyIcon, methodBadge} from "./components/common.js";
+import {copyIcon, documentationBadges, methodBadge} from "./components/common.js";
 import {parameterKey, securityGroupsFor} from "./api.js";
 import {escapeHtml} from "./lib/html.js";
 import {SIDEBAR_WIDTH_MAX, SIDEBAR_WIDTH_MIN, clampSidebarWidth} from "./state/sidebar.js";
@@ -655,7 +655,8 @@ export function renderShell(project, selected, query, menuOpen = false, state = 
             ${endpoint ? `<div class="mx-auto max-w-[1180px]">
                 <div class="endpoint-hero">
                     <p class="eyebrow mb-3">${escapeHtml(selected.group.name || "API documentation")}</p>
-                    <h1 class="endpoint-title text-4xl lg:text-5xl font-extrabold text-white tracking-tight mb-4">${escapeHtml(title)} ${endpoint.badges?.map(badge => `<span class="text-xs align-middle border border-brand text-brand rounded px-2 py-1">${escapeHtml(badge)}</span>`).join(" ") || ""}</h1>
+                    <h1 class="endpoint-title text-4xl lg:text-5xl font-extrabold text-white tracking-tight mb-4">${escapeHtml(title)}</h1>
+                    ${documentationBadges(endpoint.badges)}
                     ${description ? `<p class="endpoint-description text-[15px] text-ink-300 leading-7 mb-7">${escapeHtml(description)}</p>` : ""}
                     <div class="endpoint-line" aria-label="API endpoint">
                         ${methodBadge(endpoint.method)}
@@ -704,8 +705,8 @@ function renderNavigation(groups, schemas, selectedKey, query, state = {}) {
                 <span class="sidebar-method ${hasSummary ? "" : "sidebar-method-path-only"} text-method-${method.toLowerCase()}">${escapeHtml(shortMethod)}</span>
                 <span class="min-w-0 flex-1">
                     ${hasSummary
-                        ? `<span class="block truncate">${escapeHtml(endpoint.summary)} ${endpoint.badges?.map(badge => `<span class="text-[10px] text-brand">${escapeHtml(badge)}</span>`).join(" ") || ""}</span><code class="sidebar-endpoint-path block truncate">${escapeHtml(endpoint.path)}</code>`
-                        : `<code class="sidebar-endpoint-title block truncate">${escapeHtml(endpoint.path)}</code>`}
+                        ? `<span class="sidebar-endpoint-meta"><span class="sidebar-endpoint-summary">${escapeHtml(endpoint.summary)}</span>${documentationBadges(endpoint.badges, true)}</span><code class="sidebar-endpoint-path block truncate">${escapeHtml(endpoint.path)}</code>`
+                        : `<span class="sidebar-endpoint-meta"><code class="sidebar-endpoint-title">${escapeHtml(endpoint.path)}</code>${documentationBadges(endpoint.badges, true)}</span>`}
                 </span>
             </button>`;
         }).join("")}</nav></div>`;

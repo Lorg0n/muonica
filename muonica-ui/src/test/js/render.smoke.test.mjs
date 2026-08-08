@@ -12,6 +12,7 @@ import {
     securityGroupsFor
 } from "../../main/resources/META-INF/muonica/js/api.js";
 import { curlFor, pathValuesFor, renderMarkdown, renderShell } from "../../main/resources/META-INF/muonica/js/render.js";
+import { documentationBadges } from "../../main/resources/META-INF/muonica/js/components/common.js";
 import { validateParameters } from "../../main/resources/META-INF/muonica/js/features/request.js";
 
 const project = {
@@ -50,6 +51,7 @@ const project = {
             path: "/users/{id}",
             summary: "Get user",
             description: "Returns the full user record.",
+            badges: ["ADMIN", "beta", "custom <tag>", "admin"],
             parameters: [{
                 name: "id",
                 location: "PATH",
@@ -106,6 +108,21 @@ test("renders markdown as editorial content", () => {
     assert.match(html, /data-language="json"/);
 });
 
+test("renders badges as styled, escaped metadata", () => {
+    const full = documentationBadges(["ADMIN", "beta", "custom <tag>", "admin", "ADMIN!", ""]);
+    assert.match(full, /class="docs-badges" role="list" aria-label="Endpoint badges"/);
+    assert.match(full, /class="docs-badge docs-badge-admin" role="listitem">ADMIN<\/span>/);
+    assert.match(full, /class="docs-badge docs-badge-beta" role="listitem">beta<\/span>/);
+    assert.match(full, /class="docs-badge docs-badge-neutral" role="listitem">custom &lt;tag&gt;<\/span>/);
+    assert.match(full, /class="docs-badge docs-badge-neutral" role="listitem">ADMIN!<\/span>/);
+    assert.equal((full.match(/docs-badge-admin/g) || []).length, 1);
+    assert.equal(documentationBadges([" ", null]), "");
+
+    const compact = documentationBadges(["DEPRECATED"], true);
+    assert.match(compact, /class="docs-badges docs-badges-compact"/);
+    assert.match(compact, /docs-badge-deprecated/);
+});
+
 test("renders an endpoint as an article flow", () => {
     const selected = { group: project.groups[0], endpoint: project.groups[0].endpoints[0], key: "0:0" };
     const html = renderShell(project, selected, "");
@@ -113,6 +130,11 @@ test("renders an endpoint as an article flow", () => {
     assert.doesNotMatch(html, /class="brand-logo"/);
     assert.match(html, />muonica<\/span>/);
     assert.match(html, /class="method-badge[^>]*method-get/);
+    assert.match(html, /<h1 class="endpoint-title[^>]*>Get user<\/h1>/);
+    assert.match(html, /class="docs-badge docs-badge-admin"/);
+    assert.match(html, /class="docs-badge docs-badge-beta"/);
+    assert.match(html, /custom &lt;tag&gt;/);
+    assert.match(html, /class="docs-badges docs-badges-compact"/);
     assert.match(html, /class="notice-block notice-warning"/);
     assert.doesNotMatch(html, /class="parameter-row"/);
     assert.doesNotMatch(html, /<table/);

@@ -77,6 +77,12 @@ class MuonicaDocumentationIntegrationTest {
         ApiEndpoint createUser = project.groups().stream().flatMap(group -> group.endpoints().stream())
                 .filter(endpoint -> endpoint.path().equals("/users") && endpoint.method().equals("POST")).findFirst().orElseThrow();
         assertEquals(List.of("ADMIN"), createUser.badges());
+        ApiEndpoint cancelOrder = project.groups().stream().flatMap(group -> group.endpoints().stream())
+                .filter(endpoint -> endpoint.path().equals("/orders/{id}") && endpoint.method().equals("DELETE")).findFirst().orElseThrow();
+        assertEquals(List.of("DEPRECATED"), cancelOrder.badges());
+        ApiEndpoint startExport = project.groups().stream().flatMap(group -> group.endpoints().stream())
+                .filter(endpoint -> endpoint.path().equals("/reports/exports") && endpoint.method().equals("POST")).findFirst().orElseThrow();
+        assertEquals(List.of("BETA"), startExport.badges());
         assertTrue(createUser.responses().stream().filter(response -> response.statusCode().equals("201")).findFirst().orElseThrow()
                 .headers().containsKey("Location"));
         assertEquals(2, project.servers().size());
@@ -92,6 +98,8 @@ class MuonicaDocumentationIntegrationTest {
         assertEquals(2, ((List<?>) document.get("servers")).size());
         Map<?, ?> users = (Map<?, ?>) ((Map<?, ?>) document.get("paths")).get("/users");
         assertEquals(List.of("ADMIN"), ((Map<?, ?>) users.get("post")).get("x-muonica-badges"));
+        Map<?, ?> orders = (Map<?, ?>) ((Map<?, ?>) document.get("paths")).get("/orders/{id}");
+        assertEquals(List.of("DEPRECATED"), ((Map<?, ?>) orders.get("delete")).get("x-muonica-badges"));
         mockMvc.perform(get("/docs"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/docs/"));

@@ -137,7 +137,7 @@ class UserController {
 }
 ```
 
-Use `@MuonicaHidden` to omit a controller or handler from generated documentation without changing Spring MVC routing. Use repeatable `@MuonicaBadge("ADMIN")` for endpoint labels. `@MuonicaDescription`, `@MuonicaExample`, and `@MuonicaDefault` apply to DTO types, fields, record components, and parameters.
+Use `@MuonicaHidden` to omit a controller or handler from generated documentation without changing Spring MVC routing. Use repeatable `@MuonicaBadge("ADMIN")` for endpoint labels. The UI gives `ADMIN`, `BETA`, `DEPRECATED`, and `INTERNAL` their own Muonica-style color treatments; custom labels remain supported with a neutral treatment. `@MuonicaDescription`, `@MuonicaExample`, and `@MuonicaDefault` apply to DTO types, fields, record components, and parameters.
 
 Security requirements are OR-of-AND groups: one `@MuonicaSecurityRequirement({"bearerAuth", "apiKey"})` requires both schemes, while repeated annotations express alternatives. Project classes can declare repeatable `@MuonicaServer` entries, and `@MuonicaResponse` supports typed `@MuonicaResponseHeader` declarations. Badges are also available in OpenAPI as `x-muonica-badges`.
 
