@@ -1,9 +1,36 @@
 .doc-header { background: rgba(10, 10, 11, .86); border-color: var(--muonica-border); }
+.sidebar-shell {
+    position: sticky;
+    top: 4rem;
+    width: var(--muonica-sidebar-width, 20rem);
+    height: calc(100vh - 64px);
+    flex: 0 0 var(--muonica-sidebar-width, 20rem);
+}
 .doc-nav {
+    width: 100%;
+    height: 100%;
     border-color: var(--muonica-border);
     scrollbar-width: thin;
     scrollbar-color: rgba(151, 151, 160, .42) transparent;
 }
+.sidebar-resizer {
+    position: absolute;
+    top: 0;
+    right: -5px;
+    bottom: 0;
+    z-index: 1;
+    width: 10px;
+    cursor: col-resize;
+    outline: none;
+    background: transparent;
+    box-shadow: none;
+    touch-action: none;
+    user-select: none;
+}
+.sidebar-resizer:focus,
+.sidebar-resizer:focus-visible { outline: none !important; background: transparent; box-shadow: none; }
+body.sidebar-resizing,
+body.sidebar-resizing * { cursor: col-resize !important; user-select: none !important; }
 .doc-nav::-webkit-scrollbar { width: 5px; }
 .doc-nav::-webkit-scrollbar-track { background: transparent; }
 .doc-nav::-webkit-scrollbar-thumb {

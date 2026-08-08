@@ -1,6 +1,7 @@
 import {copyIcon, methodBadge} from "./components/common.js";
 import {parameterKey, securityGroupsFor} from "./api.js";
 import {escapeHtml} from "./lib/html.js";
+import {SIDEBAR_WIDTH_MAX, SIDEBAR_WIDTH_MIN, clampSidebarWidth} from "./state/sidebar.js";
 
 export {escapeHtml};
 
@@ -608,6 +609,7 @@ export function renderShell(project, selected, query, menuOpen = false, state = 
     const schemes = project.securitySchemes || [];
     const configuredSchemes = schemes.filter(scheme => state.authorization?.[scheme.name]).length;
     const authorizationLabel = configuredSchemes ? `Authorized · ${configuredSchemes}/${schemes.length}` : "Authorize";
+    const sidebarWidth = clampSidebarWidth(state.sidebarWidth);
 
     return `<header class="doc-header sticky top-0 z-30 flex items-center justify-between h-16 px-4 lg:px-6 border-b backdrop-blur">
         <div class="flex items-center gap-3">
@@ -641,10 +643,13 @@ export function renderShell(project, selected, query, menuOpen = false, state = 
     ${authorizationModal(project, state)}
 
     <div class="flex">
-        <aside data-preserve-scroll="sidebar-navigation" class="hidden lg:block doc-nav w-72 shrink-0 border-r border-ink-800 h-[calc(100vh-64px)] sticky top-16 overflow-y-auto px-5 py-8">
+        <div data-sidebar-shell class="hidden lg:block sidebar-shell" style="--muonica-sidebar-width: ${sidebarWidth}px">
+            <aside data-sidebar data-preserve-scroll="sidebar-navigation" class="doc-nav border-r border-ink-800 overflow-y-auto px-5 py-8">
             <p class="eyebrow mb-3">Documentation</p>
             <nav id="sidebar" aria-label="API navigation">${renderNavigation(groups, project.schemas, selected?.key, query, state)}</nav>
-        </aside>
+            </aside>
+            <div class="sidebar-resizer" data-sidebar-resizer role="separator" aria-label="Resize navigation panel" aria-orientation="vertical" aria-valuemin="${SIDEBAR_WIDTH_MIN}" aria-valuemax="${SIDEBAR_WIDTH_MAX}" aria-valuenow="${sidebarWidth}" tabindex="0"></div>
+        </div>
 
         <main class="docs-main flex-1 min-w-0 px-6 lg:px-12 py-10 lg:py-14">
             ${endpoint ? `<div class="mx-auto max-w-[1180px]">

@@ -3,6 +3,7 @@ import {escapeHtml, highlightedJson, renderShell} from "./render.js";
 import {copyText, showCopyResult} from "./lib/clipboard.js";
 import {renderDiagram} from "./features/diagrams.js";
 import {editorText, sendRequest, updateCurlPreview, validateEditor} from "./features/request.js";
+import {clampSidebarWidth, loadSidebarWidth, saveSidebarWidth} from "./state/sidebar.js";
 import {createStore} from "./state/store.js";
 
 const root = document.querySelector("#app");
@@ -20,6 +21,7 @@ const state = {
     securityGroupIndexes: new Map(),
     schemasOpen: false,
     selectedSchemaName: undefined,
+    sidebarWidth: loadSidebarWidth(),
     selectedEntry() { return allEndpoints(this.project).find(item => item.key === this.selectedKey); },
     selectedState() {
         return {
@@ -30,6 +32,7 @@ const state = {
             securityGroupIndex: this.securityGroupIndexes.get(this.selectedKey) || 0,
             schemasOpen: this.schemasOpen,
             selectedSchemaName: this.selectedSchemaName,
+            sidebarWidth: this.sidebarWidth,
             authorization: this.authorization,
             authorizationModalOpen: this.authorizationModalOpen
         };
@@ -37,6 +40,65 @@ const state = {
 };
 
 const store = createStore(state, render);
+let sidebarResize;
+
+function updateSidebarWidth(width) {
+    const sidebarWidth = clampSidebarWidth(width);
+    state.sidebarWidth = sidebarWidth;
+    const sidebarShell = root.querySelector("[data-sidebar-shell]");
+    sidebarShell?.style.setProperty("--muonica-sidebar-width", `${sidebarWidth}px`);
+    root.querySelector("[data-sidebar-resizer]")?.setAttribute("aria-valuenow", String(sidebarWidth));
+}
+
+function startSidebarResize(event) {
+    const resizer = event.target.closest("[data-sidebar-resizer]");
+    if (!resizer || (event.pointerType === "mouse" && event.button !== 0)) return;
+
+    const sidebarShell = resizer.closest("[data-sidebar-shell]");
+    if (!sidebarShell) return;
+    event.preventDefault();
+    sidebarResize = {
+        pointerId: event.pointerId,
+        resizer,
+        startX: event.clientX,
+        startWidth: state.sidebarWidth
+    };
+    resizer.setPointerCapture?.(event.pointerId);
+    document.body.classList.add("sidebar-resizing");
+}
+
+function moveSidebarResize(event) {
+    if (!sidebarResize || event.pointerId !== sidebarResize.pointerId) return;
+    updateSidebarWidth(sidebarResize.startWidth + event.clientX - sidebarResize.startX);
+}
+
+function finishSidebarResize(event) {
+    if (!sidebarResize || (event && event.pointerId !== sidebarResize.pointerId)) return;
+    const {resizer, pointerId} = sidebarResize;
+    try { resizer.releasePointerCapture?.(pointerId); } catch { /* Pointer capture may already be released. */ }
+    saveSidebarWidth(state.sidebarWidth);
+    sidebarResize = undefined;
+    document.body.classList.remove("sidebar-resizing");
+}
+
+function handleSidebarResizeKeydown(event) {
+    const resizer = event.target.closest("[data-sidebar-resizer]");
+    if (!resizer) return;
+    const step = event.shiftKey ? 40 : 16;
+    if (event.key === "ArrowRight") updateSidebarWidth(state.sidebarWidth + step);
+    else if (event.key === "ArrowLeft") updateSidebarWidth(state.sidebarWidth - step);
+    else if (event.key === "Home") updateSidebarWidth(Number(resizer.getAttribute("aria-valuemin")));
+    else if (event.key === "End") updateSidebarWidth(Number(resizer.getAttribute("aria-valuemax")));
+    else return;
+    event.preventDefault();
+    saveSidebarWidth(state.sidebarWidth);
+}
+
+root.addEventListener("pointerdown", startSidebarResize);
+root.addEventListener("keydown", handleSidebarResizeKeydown);
+window.addEventListener("pointermove", moveSidebarResize);
+window.addEventListener("pointerup", finishSidebarResize);
+window.addEventListener("pointercancel", finishSidebarResize);
 
 function render() {
     const scrollPositions = new Map([...root.querySelectorAll("[data-preserve-scroll]")]

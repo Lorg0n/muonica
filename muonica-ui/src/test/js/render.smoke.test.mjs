@@ -124,6 +124,8 @@ test("renders an endpoint as an article flow", () => {
     assert.doesNotMatch(html, /<h2 class="section-title">Parameters<\/h2>/);
     assert.match(html, /data-copy="\/users\/\{id\}"/);
     assert.match(html, /data-preserve-scroll="sidebar-navigation"/);
+    assert.match(html, /data-sidebar-shell[^>]*style="--muonica-sidebar-width: 320px"/);
+    assert.match(html, /data-sidebar-resizer[^>]*aria-valuemin="240"[^>]*aria-valuemax="480"/);
     assert.match(html, /id="endpoint-url"[^>]*>\/users\/\{id\}</);
     assert.doesNotMatch(html, /Path parameters/);
     assert.match(html, /id="code-curl"/);
@@ -179,6 +181,9 @@ test("renders filterable schemas as navigation links and a dedicated schema refe
     assert.match(schemaHtml, /&quot;role&quot;.*&quot;ADMIN&quot;/);
     assert.match(schemaHtml, /class="copy-schema-example copy-code[^>]*data-copy="\{[^>]*aria-label="Copy schema example"/);
     assert.doesNotMatch(schemaHtml, /id="endpoint-url"/);
+
+    const resizedHtml = renderShell(project, selected, "", false, { sidebarWidth: 410 });
+    assert.match(resizedHtml, /data-sidebar[^>]*style="--muonica-sidebar-width: 410px"/);
 
     const filteredHtml = renderShell(project, selected, "city");
     assert.match(filteredHtml, /data-schema="Address"/);
