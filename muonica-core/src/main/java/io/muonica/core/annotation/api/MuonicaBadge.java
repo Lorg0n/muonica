@@ -6,13 +6,8 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+/** A short visual label associated with an operation. */
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
-@Repeatable(MuonicaResponses.class)
-public @interface MuonicaResponse {
-    int status();
-    String description();
-    String contentType() default "";
-    Class<?> body() default Void.class;
-    MuonicaResponseHeader[] headers() default {};
-}
+@Repeatable(MuonicaBadges.class)
+public @interface MuonicaBadge { String value(); }

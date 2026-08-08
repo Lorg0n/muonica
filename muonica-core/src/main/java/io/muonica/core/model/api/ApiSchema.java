@@ -15,6 +15,8 @@ public record ApiSchema(
         String format,
         String ref,
         String description,
+        String example,
+        String defaultValue,
         Map<String, ApiSchema> properties,
         List<String> requiredProperties,
         ApiSchema items,
@@ -32,7 +34,7 @@ public record ApiSchema(
     }
 
     public ApiSchema(String type, String format, Map<String, ApiSchema> properties, ApiSchema items) {
-        this(type, format, null, null, properties, List.of(), items, List.of(), null, null, null, null, null);
+        this(type, format, null, null, null, null, properties, List.of(), items, List.of(), null, null, null, null, null);
     }
 
     /** Creates a schema without a type, for example a response with no body. */
@@ -57,25 +59,31 @@ public record ApiSchema(
 
     /** Creates an object schema with its declared properties and required property names. */
     public static ApiSchema object(Map<String, ApiSchema> properties, List<String> requiredProperties) {
-        return new ApiSchema("object", null, null, null, properties, requiredProperties, null, List.of(),
+        return new ApiSchema("object", null, null, null, null, null, properties, requiredProperties, null, List.of(),
                 null, null, null, null, null);
     }
 
     /** Creates a reference to a named project schema component. */
     public static ApiSchema reference(String name) {
-        return new ApiSchema(null, null, name, null, Map.of(), List.of(), null, List.of(),
+        return new ApiSchema(null, null, name, null, null, null, Map.of(), List.of(), null, List.of(),
                 null, null, null, null, null);
     }
 
     /** Creates a scalar schema constrained to the given enum values. */
     public static ApiSchema enumeration(String type, List<String> values) {
-        return new ApiSchema(type, null, null, null, Map.of(), List.of(), null, values,
+        return new ApiSchema(type, null, null, null, null, null, Map.of(), List.of(), null, values,
                 null, null, null, null, null);
     }
 
     /** Returns this schema with validation constraints from its source field or parameter. */
     public ApiSchema withValidationConstraints(Integer minLength, Integer maxLength, String pattern, Long minimum, Long maximum) {
-        return new ApiSchema(type, format, ref, description, properties, requiredProperties, items, enumValues,
+        return new ApiSchema(type, format, ref, description, example, defaultValue, properties, requiredProperties, items, enumValues,
+                minLength, maxLength, pattern, minimum, maximum);
+    }
+
+    /** Returns this schema with display metadata from its Java source. */
+    public ApiSchema withMetadata(String description, String example, String defaultValue) {
+        return new ApiSchema(type, format, ref, description, example, defaultValue, properties, requiredProperties, items, enumValues,
                 minLength, maxLength, pattern, minimum, maximum);
     }
 }

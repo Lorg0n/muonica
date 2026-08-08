@@ -5,8 +5,14 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import io.muonica.core.annotation.api.MuonicaGroup;
+import io.muonica.core.annotation.api.MuonicaBadge;
+import io.muonica.core.annotation.api.MuonicaDescription;
+import io.muonica.core.annotation.api.MuonicaExample;
+import io.muonica.core.annotation.api.MuonicaDefault;
+import io.muonica.core.annotation.api.MuonicaHidden;
 import io.muonica.core.annotation.api.MuonicaOperation;
 import io.muonica.core.annotation.api.MuonicaResponse;
+import io.muonica.core.annotation.api.MuonicaResponseHeader;
 import io.muonica.core.annotation.documentation.MuonicaDocumentation;
 import io.muonica.core.annotation.security.MuonicaSecurityRequirement;
 import java.time.LocalDate;
@@ -42,6 +48,7 @@ class UserController {
     }
 
     @GetMapping("/{userId}/preview")
+    @MuonicaHidden
     @MuonicaDocumentation(inherit = false)
     UserResponse previewUser(@PathVariable long userId) {
         return new UserResponse(userId, "Ada Lovelace", Role.MEMBER);
@@ -61,7 +68,10 @@ class UserController {
     @MuonicaOperation(summary = "Create a user", description = "Creates a user and returns the persisted representation.")
     @MuonicaDocumentation(file = "classpath:/muonica/users/create-user.md")
     @MuonicaResponse(status = 409, description = "A user with this name already exists", body = ErrorResponse.class)
+    @MuonicaResponse(status = 201, description = "User created", body = UserResponse.class,
+            headers = @MuonicaResponseHeader(name = "Location", description = "Created user URL"))
     @MuonicaSecurityRequirement("apiKey")
+    @MuonicaBadge("ADMIN")
     UserResponse createUser(@Valid @RequestBody CreateUserRequest request) {
         return new UserResponse(2, request.name(), request.role());
     }
@@ -102,9 +112,11 @@ class UserController {
     @MuonicaSecurityRequirement("apiKey")
     void uploadAvatar(@PathVariable long id, @RequestPart @NotNull MultipartFile avatar) { }
 
-    record UserResponse(long id, String name, Role role) { }
+    @MuonicaDescription("A user returned by the directory API.")
+    record UserResponse(long id, @MuonicaDescription("Display name") @MuonicaExample("Ada Lovelace") String name, Role role) { }
 
-    record CreateUserRequest(@NotBlank @Size(max = 80) String name, @NotNull Role role, List<@NotBlank String> tags) { }
+    record CreateUserRequest(@NotBlank @Size(max = 80) @MuonicaExample("Ada Lovelace") String name,
+            @NotNull @MuonicaDefault("MEMBER") Role role, List<@NotBlank String> tags) { }
 
     record UpdateUserRequest(@Size(max = 80) String name, Role role) { }
 

@@ -2,6 +2,7 @@ package io.muonica.demo;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.muonica.core.model.api.ApiEndpoint;
@@ -49,7 +50,7 @@ class MuonicaDocumentationIntegrationTest {
         assertEquals("Authorization", project.securitySchemes().stream()
                 .filter(scheme -> scheme.name().equals("bearerAuth"))
                 .findFirst().orElseThrow().parameterName());
-        assertTrue(project.groups().stream().flatMap(group -> group.endpoints().stream()).count() >= 17);
+        assertTrue(project.groups().stream().flatMap(group -> group.endpoints().stream()).count() >= 16);
         assertNotNull(project.schemas().get("UserResponse"));
         assertTrue(project.schemas().get("UserResponse").properties().containsKey("role"));
         assertEquals("markdown", project.documentationBlocks().get(0).type());
@@ -65,15 +66,20 @@ class MuonicaDocumentationIntegrationTest {
         assertTrue(getUser.documentationBlocks().stream().anyMatch(block -> block.type().equals("slot")
                 && block.attributes().get("name").equals("parameters")
                 && block.attributes().get("generated").equals(true)));
-        ApiEndpoint undocumentedPreview = project.groups().stream().flatMap(group -> group.endpoints().stream())
-                .filter(endpoint -> endpoint.method().equals("GET") && endpoint.path().equals("/users/{userId}/preview"))
-                .findFirst().orElseThrow();
-        assertEquals("previewUser", undocumentedPreview.handler());
-        assertEquals(List.of("userId"), undocumentedPreview.parameters().stream().map(parameter -> parameter.name()).toList());
-        assertEquals(List.of("request", "responses", "parameters", "security"), undocumentedPreview.documentationBlocks().stream()
-                .map(block -> block.attributes().get("name")).toList());
-        assertTrue(undocumentedPreview.documentationBlocks().stream()
-                .allMatch(block -> block.origin().name().equals("GENERATED")));
+        assertFalse(project.groups().stream().flatMap(group -> group.endpoints().stream())
+                .anyMatch(endpoint -> endpoint.path().equals("/users/{userId}/preview")));
+        ApiEndpoint orders = project.groups().stream().flatMap(group -> group.endpoints().stream())
+                .filter(endpoint -> endpoint.path().equals("/orders") && endpoint.method().equals("GET")).findFirst().orElseThrow();
+        assertEquals(List.of("page", "size", "sort"), orders.parameters().stream()
+                .filter(parameter -> parameter.name().equals("page") || parameter.name().equals("size") || parameter.name().equals("sort"))
+                .map(parameter -> parameter.name()).toList());
+        assertEquals("25", orders.parameters().stream().filter(parameter -> parameter.name().equals("size")).findFirst().orElseThrow().schema().defaultValue());
+        ApiEndpoint createUser = project.groups().stream().flatMap(group -> group.endpoints().stream())
+                .filter(endpoint -> endpoint.path().equals("/users") && endpoint.method().equals("POST")).findFirst().orElseThrow();
+        assertEquals(List.of("ADMIN"), createUser.badges());
+        assertTrue(createUser.responses().stream().filter(response -> response.statusCode().equals("201")).findFirst().orElseThrow()
+                .headers().containsKey("Location"));
+        assertEquals(2, project.servers().size());
     }
 
     @Test
@@ -83,6 +89,9 @@ class MuonicaDocumentationIntegrationTest {
         assertEquals("3.1.1", document.get("openapi"));
         assertTrue(((Map<?, ?>) document.get("paths")).containsKey("/users/{id}"));
         assertTrue(((Map<?, ?>) document.get("components")).containsKey("securitySchemes"));
+        assertEquals(2, ((List<?>) document.get("servers")).size());
+        Map<?, ?> users = (Map<?, ?>) ((Map<?, ?>) document.get("paths")).get("/users");
+        assertEquals(List.of("ADMIN"), ((Map<?, ?>) users.get("post")).get("x-muonica-badges"));
         mockMvc.perform(get("/docs"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/docs/"));
@@ -98,6 +107,7 @@ class MuonicaDocumentationIntegrationTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("href=\"./openapi.json\"")));
         mockMvc.perform(get("/docs/api")).andExpect(status().isOk());
         mockMvc.perform(get("/docs/openapi.json")).andExpect(status().isOk());
+        mockMvc.perform(get("/users/1/preview")).andExpect(status().isOk());
         mockMvc.perform(get("/muonica")).andExpect(status().isNotFound());
     }
 }

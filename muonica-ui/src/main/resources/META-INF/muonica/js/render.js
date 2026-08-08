@@ -1,5 +1,5 @@
 import {copyIcon, methodBadge} from "./components/common.js";
-import {parameterKey} from "./api.js";
+import {parameterKey, securityGroupsFor} from "./api.js";
 import {escapeHtml} from "./lib/html.js";
 
 export {escapeHtml};
@@ -144,7 +144,7 @@ function authCurlValue(scheme) {
             : placeholder;
 }
 
-export function curlFor(endpoint, contentType, body, parameterValues = {}, project = {}) {
+export function curlFor(endpoint, contentType, body, parameterValues = {}, project = {}, securityGroupIndex = 0) {
     let path = resolvePath(endpoint.path, pathValuesFor(endpoint, parameterValues));
     const schemes = Object.fromEntries((project.securitySchemes || []).map(scheme => [scheme.name, scheme]));
     const browserOrigin = globalThis.location?.origin;
@@ -164,7 +164,7 @@ export function curlFor(endpoint, contentType, body, parameterValues = {}, proje
             lines.push(`  -b \"${parameter.name}=${value}\"`);
         }
     });
-    (endpoint.securityRequirements || []).forEach(name => {
+    (securityGroupsFor(endpoint)[securityGroupIndex] || []).forEach(name => {
         const scheme = schemes[name];
         if (!scheme) return;
         const parameterName = scheme.parameterName || "Authorization";
@@ -179,8 +179,16 @@ export function curlFor(endpoint, contentType, body, parameterValues = {}, proje
             lines.push(`  -b \"${parameterName}=${value}\"`);
         }
     });
-    if (contentType) lines.push(`  -H \"Content-Type: ${contentType}\"`);
-    if (body !== undefined && body !== "") {
+    const multipart = contentType === "multipart/form-data";
+    if (contentType && !multipart) lines.push(`  -H \"Content-Type: ${contentType}\"`);
+    if (multipart) {
+        const schema = endpoint.request?.content?.[contentType];
+        Object.entries(schema?.properties || {}).forEach(([name, property]) => {
+            const binary = property?.format === "binary" || property?.items?.format === "binary";
+            lines.push(`  -F '${name}=${binary ? "@<selected-file>" : "<value>"}'`);
+        });
+    }
+    if (!multipart && body !== undefined && body !== "") {
         const indented = body.split("\n").map(line => `  ${line}`).join("\n");
         lines.push(`  -d '${indented}'`);
     }
@@ -203,6 +211,8 @@ export function highlightedCurl(code) {
 
 export function exampleForSchema(schema, schemas = {}, depth = 0) {
     if (!schema || depth > 7) return null;
+    if (schema.example !== null && schema.example !== undefined) return schema.example;
+    if (schema.defaultValue !== null && schema.defaultValue !== undefined) return schema.defaultValue;
     if (schema.enumValues?.length) return schema.enumValues[0];
     if (schema.ref) {
         const name = schema.ref.replace(/^.*\//, "");
@@ -250,7 +260,7 @@ function parameterInput(parameter, parameterValues = {}) {
             ${parameter.description ? `<p class="request-parameter-description">${escapeHtml(parameter.description)}</p>` : ""}
             <label>
                 <span class="sr-only">Value for ${escapeHtml(parameter.name)}</span>
-                <input data-parameter-key="${escapeHtml(key)}" data-parameter-required="${parameter.required}" value="${escapeHtml(parameterValue(parameterValues, parameter))}" placeholder="${escapeHtml(parameter.name)}" class="request-parameter-input" autocomplete="off" aria-label="Value for ${escapeHtml(parameter.name)}">
+                <input data-parameter-key="${escapeHtml(key)}" data-parameter-required="${parameter.required}" value="${escapeHtml(parameterValue(parameterValues, parameter) || parameter.schema?.defaultValue || "")}" placeholder="${escapeHtml(parameter.name)}" class="request-parameter-input" autocomplete="off" aria-label="Value for ${escapeHtml(parameter.name)}">
             </label>
             <p class="request-parameter-error" data-parameter-error="${escapeHtml(key)}" hidden>Required parameter.</p>
         </div>
@@ -275,11 +285,13 @@ function parameterInputs(endpoint, parameterValues = {}, optionalParametersOpen 
 function codePanel(endpoint, project, state = {}) {
     const content = Object.entries(endpoint.request?.content || {});
     const [contentType, schema] = content[0] || [null, null];
+    const multipart = contentType === "multipart/form-data";
     const defaultCode = schema ? JSON.stringify(exampleForSchema(schema, project.schemas), null, 2) : "";
     const code = state.requestBody ?? defaultCode;
-    const curl = curlFor(endpoint, contentType, code, state.parameterValues || {}, project);
+    const curl = curlFor(endpoint, contentType, multipart ? "" : code, state.parameterValues || {}, project, state.securityGroupIndex || 0);
     const hasBody = content.length > 0;
-    const protectedEndpoint = (endpoint.securityRequirements || []).length > 0;
+    const securityGroups = securityGroupsFor(endpoint);
+    const protectedEndpoint = securityGroups.length > 0;
     const activeTab = state.activeTab === "curl" || !hasBody ? "curl" : "json";
     const description = endpoint.request?.description || (hasBody
         ? `Send ${contentType} data to this endpoint.`
@@ -295,7 +307,7 @@ function codePanel(endpoint, project, state = {}) {
             ${parameterInputs(endpoint, state.parameterValues || {}, state.optionalParametersOpen)}
             <div class="panel-header">
                 <div class="flex items-center gap-1">
-                    ${hasBody ? `<button class="code-tab text-xs font-semibold px-3 py-1.5 rounded-md ${activeTab === "json" ? "code-tab-active" : "text-ink-400 hover:text-white hover:bg-ink-800"}" data-tab="json" type="button">JSON</button>` : ""}
+                    ${hasBody && !multipart ? `<button class="code-tab text-xs font-semibold px-3 py-1.5 rounded-md ${activeTab === "json" ? "code-tab-active" : "text-ink-400 hover:text-white hover:bg-ink-800"}" data-tab="json" type="button">JSON</button>` : ""}
                     <button class="code-tab text-xs font-semibold px-3 py-1.5 rounded-md ${activeTab === "curl" ? "code-tab-active" : "text-ink-400 hover:text-white hover:bg-ink-800"}" data-tab="curl" type="button">cURL</button>
                 </div>
                 <div class="flex items-center gap-2">
@@ -304,7 +316,8 @@ function codePanel(endpoint, project, state = {}) {
                 </div>
             </div>
             <div class="overflow-x-auto code-scrollbar">
-                ${hasBody ? `<pre id="code-json" contenteditable="true" spellcheck="false" data-content-type="${escapeHtml(contentType)}" class="${activeTab === "json" ? "" : "hidden "}code-editor mono text-[13px] leading-6 text-ink-200 px-4 py-4 outline-none whitespace-pre focus:bg-ink-850/40">${highlightedJson(code)}</pre>` : ""}
+                ${multipart ? `<div class="multipart-fields px-4 py-4">${Object.entries(schema?.properties || {}).map(([name, property]) => { const binary = property?.format === "binary" || property?.items?.format === "binary"; const required = (schema.requiredProperties || []).includes(name); return `<label class="block mb-3 text-sm text-ink-300"><span class="block mb-1">${escapeHtml(name)}</span>${binary ? `<input data-multipart-part="${escapeHtml(name)}" data-multipart-required="${required}" type="file" ${property?.type === "array" ? "multiple" : ""} class="request-parameter-input" aria-label="File for ${escapeHtml(name)}">` : `<input data-multipart-part="${escapeHtml(name)}" data-multipart-required="${required}" type="text" class="request-parameter-input" placeholder="${escapeHtml(name)}">`}</label>`; }).join("")}</div>` : ""}
+                ${hasBody && !multipart ? `<pre id="code-json" contenteditable="true" spellcheck="false" data-content-type="${escapeHtml(contentType)}" class="${activeTab === "json" ? "" : "hidden "}code-editor mono text-[13px] leading-6 text-ink-200 px-4 py-4 outline-none whitespace-pre focus:bg-ink-850/40">${highlightedJson(code)}</pre>` : ""}
                 <pre id="code-curl" class="${activeTab === "curl" ? "" : "hidden "}code-curl mono text-[13px] leading-6 text-ink-200 px-4 py-4 whitespace-pre-wrap">${highlightedCurl(curl)}</pre>
             </div>
             <div class="panel-footer">
@@ -482,13 +495,14 @@ function diagramBlock(block) {
     </section>`;
 }
 
-function securitySection(endpoint, project, block, authorization = {}) {
-    const requirements = endpoint.securityRequirements || [];
+function securitySection(endpoint, project, block, authorization = {}, selectedSecurityGroup = 0) {
+    const requirements = securityGroupsFor(endpoint);
     if (!requirements.length && block.origin === "GENERATED") return "";
     const schemes = Object.fromEntries((project.securitySchemes || []).map(scheme => [scheme.name, scheme]));
-    const configured = requirements.filter(name => authorization[name]).length;
-    return `<section class="section-block"><div class="section-heading"><h2 class="section-title">Authentication</h2><span class="section-meta">${requirements.length ? `${configured}/${requirements.length} configured` : escapeHtml(originLabel(block))}</span></div>
-        <div class="auth-surface content-surface">${requirements.length ? `<div>${requirements.map(name => {
+    const selected = requirements[selectedSecurityGroup] || [];
+    const configured = selected.filter(name => authorization[name]).length;
+    return `<section class="section-block"><div class="section-heading"><h2 class="section-title">Authentication</h2><span class="section-meta">${requirements.length ? `${configured}/${selected.length} configured` : escapeHtml(originLabel(block))}</span></div>
+        <div class="auth-surface content-surface">${requirements.length ? `${requirements.length > 1 ? `<label class="auth-field"><span class="auth-field-heading">Security alternative</span><select data-security-group class="request-parameter-input">${requirements.map((requirement, index) => `<option value="${index}" ${index === selectedSecurityGroup ? "selected" : ""}>${escapeHtml(requirement.join(" + "))}</option>`).join("")}</select></label>` : ""}<div>${selected.map(name => {
             const scheme = schemes[name];
             const details = scheme ? [scheme.type, scheme.scheme, scheme.bearerFormat].filter(Boolean).join(" · ") : "Security requirement";
             const placement = scheme?.parameterName ? `${scheme.parameterName}${scheme.parameterLocation ? ` · ${String(scheme.parameterLocation).toLowerCase()}` : ""}` : "Operation security requirement";
@@ -516,7 +530,7 @@ export function documentationBlocks(blocks, endpoint, project, state = {}) {
             if (name === "request") return `<section class="section-block">${codePanel(endpoint, project, {...state, pathValues: state.pathValues})}</section>`;
             if (name === "responses") return responseList(endpoint.responses, project.schemas);
             if (name === "parameters") return parametersSection();
-            if (name === "security") return securitySection(endpoint, project, block, state.authorization);
+            if (name === "security") return securitySection(endpoint, project, block, state.authorization, state.securityGroupIndex);
         }
         return genericDocumentationBlock(block);
     };
@@ -623,7 +637,7 @@ export function renderShell(project, selected, query, menuOpen = false, state = 
             ${endpoint ? `<div class="mx-auto max-w-[1180px]">
                 <div class="endpoint-hero">
                     <p class="eyebrow mb-3">${escapeHtml(selected.group.name || "API documentation")}</p>
-                    <h1 class="endpoint-title text-4xl lg:text-5xl font-extrabold text-white tracking-tight mb-4">${escapeHtml(title)}</h1>
+                    <h1 class="endpoint-title text-4xl lg:text-5xl font-extrabold text-white tracking-tight mb-4">${escapeHtml(title)} ${endpoint.badges?.map(badge => `<span class="text-xs align-middle border border-brand text-brand rounded px-2 py-1">${escapeHtml(badge)}</span>`).join(" ") || ""}</h1>
                     ${description ? `<p class="endpoint-description text-[15px] text-ink-300 leading-7 mb-7">${escapeHtml(description)}</p>` : ""}
                     <div class="endpoint-line" aria-label="API endpoint">
                         ${methodBadge(endpoint.method)}
@@ -672,7 +686,7 @@ function renderNavigation(groups, schemas, selectedKey, query, state = {}) {
                 <span class="sidebar-method ${hasSummary ? "" : "sidebar-method-path-only"} text-method-${method.toLowerCase()}">${escapeHtml(shortMethod)}</span>
                 <span class="min-w-0 flex-1">
                     ${hasSummary
-                        ? `<span class="block truncate">${escapeHtml(endpoint.summary)}</span><code class="sidebar-endpoint-path block truncate">${escapeHtml(endpoint.path)}</code>`
+                        ? `<span class="block truncate">${escapeHtml(endpoint.summary)} ${endpoint.badges?.map(badge => `<span class="text-[10px] text-brand">${escapeHtml(badge)}</span>`).join(" ") || ""}</span><code class="sidebar-endpoint-path block truncate">${escapeHtml(endpoint.path)}</code>`
                         : `<code class="sidebar-endpoint-title block truncate">${escapeHtml(endpoint.path)}</code>`}
                 </span>
             </button>`;

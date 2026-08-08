@@ -1,5 +1,8 @@
 package io.muonica.spring.scan;
 
+import io.muonica.core.annotation.api.MuonicaDefault;
+import io.muonica.core.annotation.api.MuonicaDescription;
+import io.muonica.core.annotation.api.MuonicaExample;
 import io.muonica.core.model.api.ApiSchema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -24,7 +27,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.io.File;
 import org.springframework.http.ResponseEntity;
+import org.springframework.core.io.Resource;
 import org.springframework.web.multipart.MultipartFile;
 
 /** Resolves the supported Java type subset to reusable Muonica schemas. */
@@ -63,6 +68,7 @@ final class SchemaResolver {
             return ApiSchema.array(baseSchema(arrayType.getGenericComponentType()));
         }
         if (!(type instanceof Class<?> clazz)) return ApiSchema.object();
+        if (clazz == byte[].class || clazz == File.class || Resource.class.isAssignableFrom(clazz)) return ApiSchema.scalar("string", "binary");
         if (clazz.isArray()) return ApiSchema.array(baseSchema(clazz.getComponentType()));
         if (clazz == String.class || clazz == Character.class || clazz == char.class) return ApiSchema.scalar("string", null);
         if (clazz == UUID.class) return ApiSchema.scalar("string", "uuid");
@@ -110,7 +116,8 @@ final class SchemaResolver {
                 if (isRequired(field)) required.add(field.getName());
             }
         }
-        return ApiSchema.object(properties, required);
+        ApiSchema schema = ApiSchema.object(properties, required);
+        return withMetadata(schema, type);
     }
 
     private ApiSchema withConstraints(ApiSchema schema, AnnotatedElement source) {
@@ -127,7 +134,19 @@ final class SchemaResolver {
         if (min != null) minimum = min.value();
         Max max = source.getAnnotation(Max.class);
         if (max != null) maximum = max.value();
-        return schema.withValidationConstraints(minLength, maxLength, pattern, minimum, maximum);
+        return withMetadata(schema.withValidationConstraints(minLength, maxLength, pattern, minimum, maximum), source);
+    }
+
+    private ApiSchema withMetadata(ApiSchema schema, AnnotatedElement source) {
+        MuonicaDescription description = source.getAnnotation(MuonicaDescription.class);
+        MuonicaExample example = source.getAnnotation(MuonicaExample.class);
+        MuonicaDefault defaultValue = source.getAnnotation(MuonicaDefault.class);
+        String resolvedDescription = description == null || description.value().isBlank() ? schema.description() : description.value();
+        String resolvedExample = example == null ? schema.example() : example.value();
+        String resolvedDefault = defaultValue == null ? schema.defaultValue() : defaultValue.value();
+        return new ApiSchema(schema.type(), schema.format(), schema.ref(), resolvedDescription, resolvedExample, resolvedDefault,
+                schema.properties(), schema.requiredProperties(), schema.items(), schema.enumValues(), schema.minLength(), schema.maxLength(),
+                schema.pattern(), schema.minimum(), schema.maximum());
     }
 
     private boolean isRequired(AnnotatedElement source) {

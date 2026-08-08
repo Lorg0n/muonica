@@ -1,6 +1,7 @@
 package io.muonica.demo;
 
 import io.muonica.core.annotation.api.MuonicaProject;
+import io.muonica.core.annotation.api.MuonicaServer;
 import io.muonica.core.annotation.documentation.MuonicaDocumentation;
 import io.muonica.core.annotation.security.MuonicaBearerAuth;
 import io.muonica.core.annotation.security.MuonicaSecurityScheme;
@@ -9,6 +10,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
 @MuonicaProject(title = "Muonica demo API", version = "0.1.0", description = "A Spring MVC application used to demonstrate Muonica.")
+@MuonicaServer(url = "https://api.muonica.example", description = "Production")
+@MuonicaServer(url = "http://localhost:8080", description = "Local development")
 @MuonicaDocumentation(file = "classpath:/muonica/index.md")
 @MuonicaBearerAuth(bearerFormat = "JWT")
 @MuonicaSecurityScheme(name = "apiKey", type = MuonicaSecurityScheme.Type.API_KEY, parameterName = "X-API-Key")

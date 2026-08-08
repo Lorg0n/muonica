@@ -15,7 +15,7 @@ Muonica's Java model is the source of truth. Spring integration, the UI, and Ope
 
 ## Features
 
-- Automatic discovery of Spring MVC endpoints, parameters, request and response schemas, validation constraints, multipart parts, and security metadata.
+- Automatic discovery of Spring MVC endpoints, parameters, request and response schemas, validation constraints, multipart parts, pageable parameters, and security metadata.
 - Explicit annotations for project information, groups, operations, responses, and security schemes.
 - Markdown documentation packaged with the application JAR.
 - Documentation inheritance from project to group to endpoint.
@@ -23,6 +23,7 @@ Muonica's Java model is the source of truth. Spring integration, the UI, and Ope
 - Notices and Mermaid diagrams through lightweight Markdown directives.
 - A framework-free UI served directly by the Spring integration module.
 - OpenAPI 3.1.1 export from the neutral Muonica model.
+- Muonica-native metadata for hidden endpoints, badges, descriptions, examples, defaults, response headers, and project servers.
 - Strict documentation validation by default, with optional warnings for non-strict environments.
 
 ## Modules
@@ -135,6 +136,10 @@ class UserController {
     }
 }
 ```
+
+Use `@MuonicaHidden` to omit a controller or handler from generated documentation without changing Spring MVC routing. Use repeatable `@MuonicaBadge("ADMIN")` for endpoint labels. `@MuonicaDescription`, `@MuonicaExample`, and `@MuonicaDefault` apply to DTO types, fields, record components, and parameters.
+
+Security requirements are OR-of-AND groups: one `@MuonicaSecurityRequirement({"bearerAuth", "apiKey"})` requires both schemes, while repeated annotations express alternatives. Project classes can declare repeatable `@MuonicaServer` entries, and `@MuonicaResponse` supports typed `@MuonicaResponseHeader` declarations. Badges are also available in OpenAPI as `x-muonica-badges`.
 
 ## Write Markdown Documentation
 

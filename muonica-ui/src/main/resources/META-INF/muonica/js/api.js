@@ -98,12 +98,19 @@ function clearCookie(name) {
     }
 }
 
-export function authorizationForEndpoint(endpoint, project, values = {}, basePath = endpoint?.path || "") {
+export function securityGroupsFor(endpoint) {
+    const requirements = endpoint?.securityRequirements || [];
+    if (!requirements.length) return [];
+    // Legacy flat payloads were applied together by the interactive client.
+    return Array.isArray(requirements[0]) ? requirements : [requirements];
+}
+
+export function authorizationForEndpoint(endpoint, project, values = {}, basePath = endpoint?.path || "", securityGroupIndex = 0) {
     const schemes = Object.fromEntries((project?.securitySchemes || []).map(scheme => [scheme.name, scheme]));
     let path = basePath;
     const headers = {};
     const cookies = [];
-    for (const name of endpoint?.securityRequirements || []) {
+    for (const name of securityGroupsFor(endpoint)[securityGroupIndex] || []) {
         const scheme = schemes[name];
         const value = values[name];
         if (!scheme || !value) continue;
@@ -145,13 +152,13 @@ export async function loadProject() {
     return response.json();
 }
 
-export async function sendEndpointRequest(method, path, body, contentType, endpoint, project, authorization = {}, parameterValues = {}) {
+export async function sendEndpointRequest(method, path, body, contentType, endpoint, project, authorization = {}, parameterValues = {}, securityGroupIndex = 0) {
     const headers = { Accept: "application/json" };
     const hasBody = body !== undefined && body !== null && body !== "";
     const requestParameters = endpointParametersForRequest(endpoint, parameterValues, path);
     path = requestParameters.path || path;
     Object.assign(headers, requestParameters.headers);
-    const requestAuthorization = authorizationForEndpoint(endpoint, project, authorization, path);
+    const requestAuthorization = authorizationForEndpoint(endpoint, project, authorization, path, securityGroupIndex);
     path = requestAuthorization.path || path;
     Object.assign(headers, requestAuthorization.headers);
 

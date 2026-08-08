@@ -1,6 +1,7 @@
 package io.muonica.openapi;
 
 import io.muonica.core.model.api.ApiEndpoint;
+import io.muonica.core.model.api.ApiHeader;
 import io.muonica.core.model.api.ApiParameter;
 import io.muonica.core.model.api.ApiProject;
 import io.muonica.core.model.api.ApiResponse;
@@ -21,6 +22,14 @@ public final class OpenApiExporter {
         info.put("version", project.version());
         putIfNotBlank(info, "description", project.description());
         document.put("info", info);
+        if (!project.servers().isEmpty()) {
+            document.put("servers", project.servers().stream().map(server -> {
+                Map<String, Object> value = new LinkedHashMap<>();
+                value.put("url", server.url());
+                putIfNotBlank(value, "description", server.description());
+                return value;
+            }).toList());
+        }
 
         Map<String, Object> paths = new TreeMap<>();
         project.groups().forEach(group -> group.endpoints().forEach(endpoint -> {
@@ -62,8 +71,10 @@ public final class OpenApiExporter {
         endpoint.responses().forEach(response -> responses.put(response.statusCode(), response(response)));
         operation.put("responses", responses);
         if (!endpoint.securityRequirements().isEmpty()) {
-            operation.put("security", endpoint.securityRequirements().stream().map(name -> Map.of(name, List.of())).toList());
+            operation.put("security", endpoint.securityRequirements().stream().map(requirementGroup -> requirementGroup.stream()
+                    .collect(LinkedHashMap::new, (map, name) -> map.put(name, List.of()), LinkedHashMap::putAll)).toList());
         }
+        if (!endpoint.badges().isEmpty()) operation.put("x-muonica-badges", endpoint.badges());
         return operation;
     }
 
@@ -81,6 +92,18 @@ public final class OpenApiExporter {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("description", response.description() == null || response.description().isBlank() ? "Response" : response.description());
         if (!response.content().isEmpty()) result.put("content", content(response.content()));
+        if (!response.headers().isEmpty()) {
+            Map<String, Object> headers = new TreeMap<>();
+            response.headers().forEach((name, header) -> headers.put(name, header(header)));
+            result.put("headers", headers);
+        }
+        return result;
+    }
+
+    private Map<String, Object> header(ApiHeader header) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        putIfNotBlank(result, "description", header.description());
+        result.put("schema", schema(header.schema()));
         return result;
     }
 
@@ -94,11 +117,16 @@ public final class OpenApiExporter {
         Map<String, Object> result = new LinkedHashMap<>();
         if (schema.ref() != null && !schema.ref().isBlank()) {
             result.put("$ref", "#/components/schemas/" + schema.ref());
+            putIfNotBlank(result, "description", schema.description());
+            if (schema.example() != null) result.put("examples", List.of(coerce(schema.example(), schema)));
+            if (schema.defaultValue() != null) result.put("default", coerce(schema.defaultValue(), schema));
             return result;
         }
         putIfNotBlank(result, "type", schema.type());
         putIfNotBlank(result, "format", schema.format());
         putIfNotBlank(result, "description", schema.description());
+        if (schema.example() != null) result.put("examples", List.of(coerce(schema.example(), schema)));
+        if (schema.defaultValue() != null) result.put("default", coerce(schema.defaultValue(), schema));
         if (!schema.properties().isEmpty()) result.put("properties", schema.properties().entrySet().stream()
                 .collect(LinkedHashMap::new, (map, item) -> map.put(item.getKey(), schema(item.getValue())), LinkedHashMap::putAll));
         if (!schema.requiredProperties().isEmpty()) result.put("required", schema.requiredProperties());
@@ -128,5 +156,16 @@ public final class OpenApiExporter {
 
     private static void putIfNotBlank(Map<String, Object> target, String key, String value) {
         if (value != null && !value.isBlank()) target.put(key, value);
+    }
+
+    private static Object coerce(String value, ApiSchema schema) {
+        try {
+            if ("integer".equals(schema.type())) return Long.valueOf(value);
+            if ("number".equals(schema.type())) return Double.valueOf(value);
+            if ("boolean".equals(schema.type())) return Boolean.valueOf(value);
+        } catch (NumberFormatException ignored) {
+            // Preserve invalid examples verbatim instead of failing document generation.
+        }
+        return value;
     }
 }

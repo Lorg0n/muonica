@@ -8,7 +8,8 @@ import {
     loadAuthorization,
     normalizeBearerToken,
     saveAuthorization,
-    sendEndpointRequest
+    sendEndpointRequest,
+    securityGroupsFor
 } from "../../main/resources/META-INF/muonica/js/api.js";
 import { curlFor, pathValuesFor, renderMarkdown, renderShell } from "../../main/resources/META-INF/muonica/js/render.js";
 import { validateParameters } from "../../main/resources/META-INF/muonica/js/features/request.js";
@@ -268,6 +269,36 @@ test("builds matching authorization headers and query parameters", () => {
         headers: { Authorization: "Bearer abc123" },
         cookies: []
     });
+});
+
+test("applies one AND security group while preserving alternatives", () => {
+    const endpoint = { path: "/admin", securityRequirements: [["bearerAuth", "apiKey"], ["apiKey"]] };
+    const project = { securitySchemes: [
+        { name: "bearerAuth", type: "HTTP", scheme: "bearer", parameterName: "Authorization", parameterLocation: "HEADER" },
+        { name: "apiKey", type: "API_KEY", parameterName: "key", parameterLocation: "QUERY" }
+    ] };
+    assert.deepEqual(securityGroupsFor(endpoint), [["bearerAuth", "apiKey"], ["apiKey"]]);
+    assert.deepEqual(authorizationForEndpoint(endpoint, project, { bearerAuth: "token", apiKey: "key" }, "/admin", 0), {
+        path: "/admin?key=key", headers: { Authorization: "Bearer token" }, cookies: []
+    });
+    assert.match(curlFor(endpoint, "", "", {}, project, 1), /key/);
+    assert.doesNotMatch(curlFor(endpoint, "", "", {}, project, 1), /Authorization/);
+});
+
+test("renders multipart curl and lets fetch receive FormData without a content type", async () => {
+    const endpoint = { method: "POST", path: "/upload", parameters: [], securityRequirements: [], request: {
+        content: { "multipart/form-data": { type: "object", properties: { file: { type: "string", format: "binary" } } } }
+    } };
+    assert.match(curlFor(endpoint, "multipart/form-data", ""), /-F 'file=@<selected-file>'/);
+    assert.doesNotMatch(curlFor(endpoint, "multipart/form-data", '{"file":"wrong"}'), /-d/);
+    const originalFetch = globalThis.fetch;
+    let options;
+    try {
+        globalThis.fetch = async (_path, request) => { options = request; return { text: async () => "", ok: true, status: 200, statusText: "OK" }; };
+        await sendEndpointRequest("POST", "/upload", new FormData(), "multipart/form-data", endpoint, { securitySchemes: [] });
+        assert.equal(options.headers["Content-Type"], undefined);
+        assert.ok(options.body instanceof FormData);
+    } finally { globalThis.fetch = originalFetch; }
 });
 
 test("builds endpoint query, header, and cookie parameters from interactive values", () => {

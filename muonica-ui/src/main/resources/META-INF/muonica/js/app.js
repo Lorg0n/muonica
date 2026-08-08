@@ -17,6 +17,7 @@ const state = {
     parameterValues: new Map(),
     optionalParametersOpen: new Map(),
     activeTabs: new Map(),
+    securityGroupIndexes: new Map(),
     schemasOpen: false,
     selectedSchemaName: undefined,
     selectedEntry() { return allEndpoints(this.project).find(item => item.key === this.selectedKey); },
@@ -26,6 +27,7 @@ const state = {
             parameterValues: this.parameterValues.get(this.selectedKey),
             optionalParametersOpen: this.optionalParametersOpen.get(this.selectedKey) || false,
             activeTab: this.activeTabs.get(this.selectedKey) || "json",
+            securityGroupIndex: this.securityGroupIndexes.get(this.selectedKey) || 0,
             schemasOpen: this.schemasOpen,
             selectedSchemaName: this.selectedSchemaName,
             authorization: this.authorization,
@@ -88,6 +90,14 @@ root.addEventListener("input", event => {
         updateCurlPreview(root, state);
     }
     if (target.matches("[data-parameter-key]")) updateCurlPreview(root, state);
+});
+
+root.addEventListener("change", event => {
+    if (event.target.matches("[data-multipart-part]")) updateCurlPreview(root, state);
+    if (event.target.matches("[data-security-group]")) {
+        state.securityGroupIndexes.set(state.selectedKey, Number(event.target.value));
+        render();
+    }
 });
 
 root.addEventListener("blur", event => {

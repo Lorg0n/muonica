@@ -6,13 +6,10 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-@Target(ElementType.METHOD)
+@Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
-@Repeatable(MuonicaResponses.class)
-public @interface MuonicaResponse {
-    int status();
-    String description();
-    String contentType() default "";
-    Class<?> body() default Void.class;
-    MuonicaResponseHeader[] headers() default {};
+@Repeatable(MuonicaServers.class)
+public @interface MuonicaServer {
+    String url();
+    String description() default "";
 }

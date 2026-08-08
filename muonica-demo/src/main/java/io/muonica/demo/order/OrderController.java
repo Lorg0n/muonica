@@ -3,6 +3,7 @@ package io.muonica.demo.order;
 import io.muonica.core.annotation.api.MuonicaGroup;
 import io.muonica.core.annotation.api.MuonicaOperation;
 import io.muonica.core.annotation.api.MuonicaResponse;
+import io.muonica.core.annotation.api.MuonicaAllowedSort;
 import io.muonica.core.annotation.documentation.MuonicaDocumentation;
 import io.muonica.core.annotation.security.MuonicaSecurityRequirement;
 import jakarta.validation.Valid;
@@ -26,6 +27,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.data.web.SortDefault;
 
 @RestController
 @RequestMapping("/orders")
@@ -39,8 +43,8 @@ class OrderController {
     List<OrderResponse> listOrders(
             @RequestParam(name = "status", required = false) OrderStatus status,
             @RequestParam(name = "customerId", required = false) UUID customerId,
-            @RequestParam(name = "page", required = false) Integer page,
-            @RequestParam(name = "pageSize", required = false) Integer pageSize,
+            @PageableDefault(value = 25) @SortDefault("createdAt") @SortDefault("status")
+            @MuonicaAllowedSort({"createdAt", "total", "status"}) Pageable pageable,
             @RequestHeader(name = "X-Request-Id", required = false) String requestId) {
         return List.of(sampleOrder());
     }

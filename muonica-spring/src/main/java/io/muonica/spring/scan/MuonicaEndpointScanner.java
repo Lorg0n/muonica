@@ -1,28 +1,37 @@
 package io.muonica.spring.scan;
 
+import io.muonica.core.annotation.api.MuonicaAllowedSort;
+import io.muonica.core.annotation.api.MuonicaBadge;
 import io.muonica.core.annotation.api.MuonicaGroup;
+import io.muonica.core.annotation.api.MuonicaHidden;
 import io.muonica.core.annotation.api.MuonicaOperation;
 import io.muonica.core.annotation.api.MuonicaProject;
 import io.muonica.core.annotation.api.MuonicaResponse;
+import io.muonica.core.annotation.api.MuonicaResponseHeader;
+import io.muonica.core.annotation.api.MuonicaServer;
 import io.muonica.core.annotation.documentation.MuonicaDocumentation;
 import io.muonica.core.annotation.security.MuonicaBearerAuth;
 import io.muonica.core.annotation.security.MuonicaSecurityRequirement;
 import io.muonica.core.annotation.security.MuonicaSecurityScheme;
 import io.muonica.core.model.api.ApiEndpoint;
 import io.muonica.core.model.api.ApiGroup;
+import io.muonica.core.model.api.ApiHeader;
 import io.muonica.core.model.api.ApiParameter;
 import io.muonica.core.model.api.ApiProject;
 import io.muonica.core.model.api.ApiRequest;
 import io.muonica.core.model.api.ApiResponse;
 import io.muonica.core.model.api.ApiSchema;
+import io.muonica.core.model.api.ApiServer;
 import io.muonica.core.model.security.ApiSecurityScheme;
 import io.muonica.spring.documentation.DocumentationComposer;
 import io.muonica.spring.documentation.DocumentationFileLoader;
 import io.muonica.spring.documentation.DocumentationResolution;
 import io.muonica.spring.documentation.DocumentationResolver;
+import java.lang.reflect.AnnotatedElement;
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
-import java.lang.reflect.AnnotatedElement;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -108,13 +117,15 @@ public final class MuonicaEndpointScanner implements SmartInitializingSingleton 
         String version = metadata != null && !metadata.version().isBlank() ? metadata.version() : "0.0.0";
         String description = metadata != null && !metadata.description().isBlank() ? metadata.description() : null;
         return new ApiProject(name, version, description, groups, projectDocumentation.blocks(), projectDocumentation.warnings(),
-                securitySchemes(projectClass()), schemas.components());
+                securitySchemes(projectClass()), servers(projectClass()), schemas.components());
     }
 
     private static boolean shouldDocument(HandlerMethod handler) {
         Class<?> controller = handler.getBeanType();
         return !controller.getPackageName().startsWith(MUONICA_PACKAGE)
-                && !ErrorController.class.isAssignableFrom(controller);
+                && !ErrorController.class.isAssignableFrom(controller)
+                && !controller.isAnnotationPresent(MuonicaHidden.class)
+                && !handler.getMethod().isAnnotationPresent(MuonicaHidden.class);
     }
 
     private ApiGroup group(Class<?> controller, List<ApiEndpoint> endpoints, DocumentationResolution documentation) {
@@ -143,6 +154,11 @@ public final class MuonicaEndpointScanner implements SmartInitializingSingleton 
         List<ApiParameter> parameters = new ArrayList<>();
         ApiRequest request = null;
         for (Parameter parameter : javaMethod.getParameters()) {
+            if (isPageable(parameter)) {
+                parameters.addAll(pageableParameters(parameter));
+                continue;
+            }
+            if (isAuthenticationPrincipal(parameter)) continue;
             ApiParameter apiParameter = parameter(parameter, schemas);
             if (apiParameter != null) parameters.add(apiParameter);
             if (parameter.isAnnotationPresent(RequestBody.class)) request = requestBody(parameter, mapping, schemas);
@@ -151,14 +167,23 @@ public final class MuonicaEndpointScanner implements SmartInitializingSingleton 
         Map<String, ApiResponse> responses = new LinkedHashMap<>();
         String status = statusCode(javaMethod);
         ApiSchema returnSchema = schemas.resolve(javaMethod.getGenericReturnType());
-        if (returnSchema.type() != null || returnSchema.ref() != null) {
-            Map<String, ApiSchema> content = new LinkedHashMap<>();
-            responseContentTypes(mapping).forEach(contentType -> content.put(contentType, returnSchema));
-            responses.put(status, new ApiResponse(status, "Success", content));
-        } else responses.put(status, new ApiResponse(status, "Success", Map.of()));
-        for (MuonicaResponse response : javaMethod.getAnnotationsByType(MuonicaResponse.class)) {
+        MuonicaResponse[] explicitResponses = javaMethod.getAnnotationsByType(MuonicaResponse.class);
+        if (!isResponseEntity(javaMethod.getGenericReturnType()) || explicitResponses.length == 0) {
+            if (returnSchema.type() != null || returnSchema.ref() != null) {
+                Map<String, ApiSchema> content = new LinkedHashMap<>();
+                responseContentTypes(mapping, returnSchema).forEach(contentType -> content.put(contentType, returnSchema));
+                responses.put(status, new ApiResponse(status, "Success", content));
+            } else responses.put(status, new ApiResponse(status, "Success", Map.of()));
+        }
+        for (MuonicaResponse response : explicitResponses) {
             String code = Integer.toString(response.status());
-            responses.put(code, new ApiResponse(code, response.description(), response.body() == Void.class ? Map.of() : Map.of(response.contentType(), schemas.resolve(response.body()))));
+            ApiSchema body = response.body() == Void.class ? null : schemas.resolve(response.body());
+            Map<String, ApiSchema> content = body == null ? Map.of() : Map.of(responseContentType(response, body, mapping), body);
+            Map<String, ApiHeader> headers = new LinkedHashMap<>();
+            for (MuonicaResponseHeader header : response.headers()) {
+                headers.put(header.name(), new ApiHeader(blankToNull(header.description()), schemas.resolve(header.schema())));
+            }
+            responses.put(code, new ApiResponse(code, response.description(), content, headers));
         }
         DocumentationResolution endpointDocumentation = documentationResolver.apply(javaMethod);
         boolean inheritsDocumentation = java.util.stream.Stream.of(javaMethod.getAnnotationsByType(MuonicaDocumentation.class))
@@ -169,7 +194,9 @@ public final class MuonicaEndpointScanner implements SmartInitializingSingleton 
         return new ApiEndpoint(method, path, handler.getBeanType().getSimpleName(), javaMethod.getName(),
                 blankToNull(operation == null ? null : operation.summary()), blankToNull(operation == null ? null : operation.description()),
                 parameters, request, List.copyOf(responses.values()), composedDocumentation.blocks(),
-                java.util.stream.Stream.of(javaMethod.getAnnotationsByType(MuonicaSecurityRequirement.class)).map(MuonicaSecurityRequirement::value).toList(),
+                securityRequirements(handler.getBeanType(), javaMethod),
+                java.util.stream.Stream.of(javaMethod.getAnnotationsByType(MuonicaBadge.class)).map(MuonicaBadge::value)
+                        .filter(value -> !value.isBlank()).distinct().toList(),
                 composedDocumentation.warnings());
     }
 
@@ -186,7 +213,8 @@ public final class MuonicaEndpointScanner implements SmartInitializingSingleton 
     }
 
     private ApiParameter parameter(String name, ApiParameter.ParameterLocation location, boolean required, Parameter source, SchemaResolver schemas) {
-        return new ApiParameter(name, location, required || location == ApiParameter.ParameterLocation.PATH, null, schemas.resolve(source.getParameterizedType(), source));
+        ApiSchema schema = schemas.resolve(source.getParameterizedType(), source);
+        return new ApiParameter(name, location, required || location == ApiParameter.ParameterLocation.PATH, schema.description(), schema);
     }
 
     private ApiRequest requestBody(Parameter parameter, RequestMappingInfo mapping, SchemaResolver schemas) {
@@ -218,9 +246,15 @@ public final class MuonicaEndpointScanner implements SmartInitializingSingleton 
         return types.isEmpty() ? List.of("application/json") : types;
     }
 
-    private static List<String> responseContentTypes(RequestMappingInfo mapping) {
+    private static List<String> responseContentTypes(RequestMappingInfo mapping, ApiSchema schema) {
         List<String> types = mapping.getProducesCondition().getProducibleMediaTypes().stream().map(Object::toString).sorted().toList();
-        return types.isEmpty() ? List.of("application/json") : types;
+        if (!types.isEmpty()) return types;
+        return isBinary(schema) ? List.of("application/octet-stream") : List.of("application/json");
+    }
+
+    private static String responseContentType(MuonicaResponse response, ApiSchema schema, RequestMappingInfo mapping) {
+        if (!response.contentType().isBlank()) return response.contentType();
+        return responseContentTypes(mapping, schema).get(0);
     }
 
     private static String name(String name, String value, Parameter parameter) {
@@ -242,6 +276,146 @@ public final class MuonicaEndpointScanner implements SmartInitializingSingleton 
                         annotation.name(), ApiSecurityScheme.Type.HTTP, "bearer", annotation.bearerFormat(), annotation.parameterName(),
                         ApiParameter.ParameterLocation.HEADER));
         return java.util.stream.Stream.concat(configured, bearer).distinct().toList();
+    }
+
+    private static List<ApiServer> servers(Class<?> source) {
+        if (source == null) return List.of();
+        return java.util.stream.Stream.of(source.getAnnotationsByType(MuonicaServer.class))
+                .filter(annotation -> !annotation.url().isBlank())
+                .map(annotation -> new ApiServer(annotation.url(), blankToNull(annotation.description()))).toList();
+    }
+
+    private static List<List<String>> securityRequirements(Class<?> controller, Method method) {
+        List<List<String>> controllerGroups = securityGroups(controller);
+        List<List<String>> methodGroups = securityGroups(method);
+        if (controllerGroups.isEmpty()) return methodGroups;
+        if (methodGroups.isEmpty()) return controllerGroups;
+        List<List<String>> combined = new ArrayList<>();
+        for (List<String> controllerGroup : controllerGroups) {
+            for (List<String> methodGroup : methodGroups) {
+                List<String> group = new ArrayList<>(controllerGroup);
+                methodGroup.stream().filter(name -> !group.contains(name)).forEach(group::add);
+                combined.add(List.copyOf(group));
+            }
+        }
+        return List.copyOf(combined);
+    }
+
+    private static List<List<String>> securityGroups(AnnotatedElement source) {
+        return java.util.stream.Stream.of(source.getAnnotationsByType(MuonicaSecurityRequirement.class))
+                .map(annotation -> java.util.stream.Stream.of(annotation.value()).filter(value -> !value.isBlank()).distinct().toList())
+                .filter(group -> !group.isEmpty()).toList();
+    }
+
+    private static boolean isPageable(Parameter parameter) {
+        return parameter.getType().getName().equals("org.springframework.data.domain.Pageable")
+                && isPresent("org.springframework.data.domain.Pageable", parameter.getDeclaringExecutable().getDeclaringClass().getClassLoader());
+    }
+
+    private static List<ApiParameter> pageableParameters(Parameter parameter) {
+        Annotation pageableDefault = annotation(parameter, "org.springframework.data.web.PageableDefault");
+        int page = intAttribute(pageableDefault, "page", 0);
+        int size = intAttributeAlias(pageableDefault, "size", "value", 20);
+        List<String> sorts = sortDefaults(parameter, pageableDefault);
+        ApiSchema pageSchema = ApiSchema.scalar("integer", "int32").withMetadata(null, null, Integer.toString(page));
+        ApiSchema sizeSchema = ApiSchema.scalar("integer", "int32").withMetadata(null, null, Integer.toString(size));
+        ApiSchema sortSchema = ApiSchema.scalar("string", null).withMetadata(null,
+                sorts.isEmpty() ? null : String.join(",", sorts), sorts.isEmpty() ? null : String.join(",", sorts));
+        MuonicaAllowedSort allowedSort = parameter.getAnnotation(MuonicaAllowedSort.class);
+        if (allowedSort != null && allowedSort.value().length > 0) {
+            List<String> values = java.util.stream.Stream.of(allowedSort.value()).filter(value -> !value.isBlank())
+                    .flatMap(value -> java.util.stream.Stream.of(value + ",ASC", value + ",DESC")).toList();
+            sortSchema = ApiSchema.enumeration("string", values).withMetadata(null, sortSchema.example(), sortSchema.defaultValue());
+        }
+        return List.of(
+                new ApiParameter("page", ApiParameter.ParameterLocation.QUERY, false, "Zero-based page index.", pageSchema),
+                new ApiParameter("size", ApiParameter.ParameterLocation.QUERY, false, "Maximum number of results per page.", sizeSchema),
+                new ApiParameter("sort", ApiParameter.ParameterLocation.QUERY, false, "Sort property and direction, for example name,ASC.", sortSchema));
+    }
+
+    private static List<String> sortDefaults(Parameter parameter, Annotation pageableDefault) {
+        List<String> result = new ArrayList<>();
+        String direction = enumAttribute(pageableDefault, "direction", "ASC");
+        for (String property : stringArrayAttribute(pageableDefault, "sort")) result.add(property + "," + direction);
+        for (Annotation candidate : sortDefaultAnnotations(parameter)) {
+            String sortDirection = enumAttribute(candidate, "direction", "ASC");
+            List<String> properties = stringArrayAttribute(candidate, "sort");
+            if (properties.isEmpty()) properties = stringArrayAttribute(candidate, "value");
+            for (String property : properties) result.add(property + "," + sortDirection);
+        }
+        return result.stream().distinct().toList();
+    }
+
+    private static Annotation annotation(AnnotatedElement source, String typeName) {
+        for (Annotation candidate : source.getAnnotations()) if (candidate.annotationType().getName().equals(typeName)) return candidate;
+        return null;
+    }
+
+    private static int intAttribute(Annotation annotation, String name, int fallback) {
+        Object value = attribute(annotation, name); return value instanceof Integer integer ? integer : fallback;
+    }
+
+    private static int intAttributeAlias(Annotation annotation, String primary, String alias, int fallback) {
+        int primaryValue = intAttribute(annotation, primary, fallback);
+        int aliasValue = intAttribute(annotation, alias, fallback);
+        Object primaryDefault = annotationDefault(annotation, primary);
+        return primaryDefault instanceof Integer defaultValue && primaryValue == defaultValue && aliasValue != defaultValue
+                ? aliasValue : primaryValue;
+    }
+
+    private static Object annotationDefault(Annotation annotation, String name) {
+        if (annotation == null) return null;
+        try { return annotation.annotationType().getMethod(name).getDefaultValue(); }
+        catch (ReflectiveOperationException ignored) { return null; }
+    }
+
+    private static List<Annotation> sortDefaultAnnotations(Parameter parameter) {
+        List<Annotation> result = new ArrayList<>();
+        for (Annotation candidate : parameter.getAnnotations()) {
+            String typeName = candidate.annotationType().getName();
+            if (typeName.equals("org.springframework.data.web.SortDefault")) result.add(candidate);
+            if (typeName.equals("org.springframework.data.web.SortDefaults")) {
+                Object values = attribute(candidate, "value");
+                if (values instanceof Annotation[] annotations) result.addAll(List.of(annotations));
+            }
+        }
+        return result;
+    }
+
+    private static String enumAttribute(Annotation annotation, String name, String fallback) {
+        Object value = attribute(annotation, name); return value instanceof Enum<?> enumValue ? enumValue.name() : fallback;
+    }
+
+    private static List<String> stringArrayAttribute(Annotation annotation, String name) {
+        Object value = attribute(annotation, name);
+        return value instanceof String[] values ? List.of(values) : List.of();
+    }
+
+    private static Object attribute(Annotation annotation, String name) {
+        if (annotation == null) return null;
+        try { return annotation.annotationType().getMethod(name).invoke(annotation); }
+        catch (ReflectiveOperationException ignored) { return null; }
+    }
+
+    private static boolean isAuthenticationPrincipal(Parameter parameter) {
+        String name = parameter.getType().getName();
+        if (name.equals("java.security.Principal") || name.equals("org.springframework.security.core.Authentication")
+                || name.equals("org.springframework.security.core.context.SecurityContext")) return true;
+        return java.util.stream.Stream.of(parameter.getAnnotations()).map(annotation -> annotation.annotationType().getName())
+                .anyMatch(annotation -> annotation.equals("org.springframework.security.core.annotation.AuthenticationPrincipal")
+                        || annotation.equals("org.springframework.security.core.annotation.CurrentSecurityContext"));
+    }
+
+    private static boolean isResponseEntity(Type type) {
+        if (type instanceof java.lang.reflect.ParameterizedType parameterized) return parameterized.getRawType() == org.springframework.http.ResponseEntity.class;
+        return type == org.springframework.http.ResponseEntity.class;
+    }
+
+    private static boolean isBinary(ApiSchema schema) { return "binary".equals(schema.format()); }
+
+    private static boolean isPresent(String className, ClassLoader classLoader) {
+        try { Class.forName(className, false, classLoader); return true; }
+        catch (ClassNotFoundException ignored) { return false; }
     }
 
     private static String parameterName(MuonicaSecurityScheme annotation) {

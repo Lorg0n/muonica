@@ -24,12 +24,34 @@ export function validateParameters(root) {
     return valid;
 }
 
+function multipartBody(root) {
+    const fields = [...root.querySelectorAll("[data-multipart-part]")];
+    if (!fields.length) return null;
+    const body = new FormData();
+    for (const input of fields) {
+        const files = [...(input.files || [])];
+        const file = files[0];
+        if (input.dataset.multipartRequired === "true" && !file && !input.value) {
+            input.classList.add("request-parameter-input-error");
+            input.focus();
+            return undefined;
+        }
+        input.classList.remove("request-parameter-input-error");
+        if (files.length) files.forEach(value => body.append(input.dataset.multipartPart, value));
+        else if (input.value) body.append(input.dataset.multipartPart, input.value);
+    }
+    return body;
+}
+
 export function updateCurlPreview(root, state) {
     const endpoint = state.selectedEntry()?.endpoint;
     const editor = root.querySelector("#code-json");
     const curl = root.querySelector("#code-curl");
     if (!endpoint || !curl) return;
-    curl.innerHTML = highlightedCurl(curlFor(endpoint, editor?.dataset.contentType, editor ? editorText(editor) : "", parameterValuesFrom(root, state), state.project));
+    const contentType = editor?.dataset.contentType || Object.keys(endpoint.request?.content || {})[0];
+    const securityGroupIndex = state.securityGroupIndexes?.get(state.selectedKey) || state.securityGroupIndex || 0;
+    curl.innerHTML = highlightedCurl(curlFor(endpoint, contentType, contentType === "multipart/form-data" ? "" : editor ? editorText(editor) : "",
+        parameterValuesFrom(root, state), state.project, securityGroupIndex));
 }
 
 export function validateEditor(root) {
@@ -66,7 +88,11 @@ export async function sendRequest(root, state) {
     }
     let requestBody;
     const contentType = editor?.dataset.contentType;
-    if (editor) {
+    const multipart = root.querySelectorAll("[data-multipart-part]").length > 0;
+    if (multipart) {
+        requestBody = multipartBody(root);
+        if (requestBody === undefined) return;
+    } else if (editor) {
         if (!validateEditor(root)) return editor.focus();
         requestBody = editorText(editor);
         state.requestBodies.set(state.selectedKey, JSON.stringify(JSON.parse(requestBody), null, 2));
@@ -80,7 +106,9 @@ export async function sendRequest(root, state) {
     button.innerHTML = '<svg class="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.4" stroke-opacity=".25"/><path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg> Sending…';
     panel.classList.remove("hidden");
     try {
-        const result = await sendEndpointRequest(endpoint.method, resolvePath(endpoint.path, pathValuesFor(endpoint, parameterValues)), requestBody, contentType, endpoint, state.project, state.authorization, parameterValues);
+        const result = await sendEndpointRequest(endpoint.method, resolvePath(endpoint.path, pathValuesFor(endpoint, parameterValues)), requestBody,
+            multipart ? "multipart/form-data" : contentType, endpoint, state.project, state.authorization, parameterValues,
+            state.securityGroupIndexes?.get(state.selectedKey) || state.securityGroupIndex || 0);
         if (!button.isConnected) return;
         const successful = result.response.ok;
         status.textContent = `${result.response.status} ${result.response.statusText || (successful ? "OK" : "Response")}`;
