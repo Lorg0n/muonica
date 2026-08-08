@@ -4,6 +4,13 @@ import {escapeHtml} from "./lib/html.js";
 
 export {escapeHtml};
 
+function metadataValue(schema, value) {
+    if (typeof value === "string" && (schema.type === "array" || schema.type === "object")) {
+        try { return JSON.parse(value); } catch (_) { /* Preserve invalid examples as text. */ }
+    }
+    return value;
+}
+
 function schemaType(schema) {
     if (!schema) return "unknown";
     if (schema.ref) return schema.ref.replace(/^.*\//, "");
@@ -211,8 +218,8 @@ export function highlightedCurl(code) {
 
 export function exampleForSchema(schema, schemas = {}, depth = 0) {
     if (!schema || depth > 7) return null;
-    if (schema.example !== null && schema.example !== undefined) return schema.example;
-    if (schema.defaultValue !== null && schema.defaultValue !== undefined) return schema.defaultValue;
+    if (schema.example !== null && schema.example !== undefined) return metadataValue(schema, schema.example);
+    if (schema.defaultValue !== null && schema.defaultValue !== undefined) return metadataValue(schema, schema.defaultValue);
     if (schema.enumValues?.length) return schema.enumValues[0];
     if (schema.ref) {
         const name = schema.ref.replace(/^.*\//, "");
@@ -233,6 +240,9 @@ export function exampleForSchema(schema, schemas = {}, depth = 0) {
 
 function responseExampleForSchema(schema, schemas = {}, depth = 0) {
     if (!schema || depth > 7) return null;
+    if (schema.example !== null && schema.example !== undefined) return metadataValue(schema, schema.example);
+    if (schema.defaultValue !== null && schema.defaultValue !== undefined) return metadataValue(schema, schema.defaultValue);
+    if (schema.enumValues?.length) return schema.enumValues[0];
     if (schema.type === "array") return [responseExampleForSchema(schema.items, schemas, depth + 1)];
     if (schema.ref) {
         const name = schema.ref.replace(/^.*\//, "");
@@ -244,6 +254,9 @@ function responseExampleForSchema(schema, schemas = {}, depth = 0) {
     }
     if (["integer", "number"].includes(schema.type)) return 0;
     if (schema.type === "boolean") return true;
+    if (schema.format === "uuid") return "00000000-0000-0000-0000-000000000000";
+    if (schema.format === "date") return "2026-01-01";
+    if (schema.format === "date-time") return "2026-01-01T00:00:00Z";
     return "hello";
 }
 

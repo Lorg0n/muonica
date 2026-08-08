@@ -213,7 +213,7 @@ test("renders scalar response fields when their schemas include empty properties
 
     const html = renderShell(project, selected, "");
 
-    assert.match(html, /<span class="text-sky-300">&quot;id&quot;<\/span>: <span class="text-mint">&quot;hello&quot;<\/span>/);
+    assert.match(html, /<span class="text-sky-300">&quot;id&quot;<\/span>: <span class="text-mint">&quot;00000000-0000-0000-0000-000000000000&quot;<\/span>/);
     assert.match(html, /<span class="text-sky-300">&quot;total&quot;<\/span>: <span class="text-brand">0<\/span>/);
     assert.match(html, /<span class="text-sky-300">&quot;paid&quot;<\/span>: <span class="text-brand">true<\/span>/);
     assert.doesNotMatch(html, /<span class="text-sky-300">&quot;total&quot;<\/span>: \{\}/);

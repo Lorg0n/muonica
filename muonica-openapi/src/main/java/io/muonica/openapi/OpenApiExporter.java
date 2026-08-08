@@ -7,6 +7,7 @@ import io.muonica.core.model.api.ApiProject;
 import io.muonica.core.model.api.ApiResponse;
 import io.muonica.core.model.api.ApiSchema;
 import io.muonica.core.model.security.ApiSecurityScheme;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -159,6 +160,12 @@ public final class OpenApiExporter {
     }
 
     private static Object coerce(String value, ApiSchema schema) {
+        String trimmed = value == null ? "" : value.trim();
+        if ("array".equals(schema.type()) && trimmed.startsWith("[") && trimmed.endsWith("]")) {
+            String body = trimmed.substring(1, trimmed.length() - 1).trim();
+            if (body.isEmpty()) return List.of();
+            return splitJsonElements(body).stream().map(item -> coerce(item, schema.items())).toList();
+        }
         try {
             if ("integer".equals(schema.type())) return Long.valueOf(value);
             if ("number".equals(schema.type())) return Double.valueOf(value);
@@ -167,5 +174,25 @@ public final class OpenApiExporter {
             // Preserve invalid examples verbatim instead of failing document generation.
         }
         return value;
+    }
+
+    private static List<String> splitJsonElements(String value) {
+        List<String> elements = new ArrayList<>();
+        int start = 0;
+        int depth = 0;
+        boolean quoted = false;
+        for (int index = 0; index < value.length(); index++) {
+            char character = value.charAt(index);
+            if (character == '"' && (index == 0 || value.charAt(index - 1) != '\\')) quoted = !quoted;
+            if (quoted) continue;
+            if (character == '[' || character == '{') depth++;
+            else if (character == ']' || character == '}') depth--;
+            else if (character == ',' && depth == 0) {
+                elements.add(value.substring(start, index).trim());
+                start = index + 1;
+            }
+        }
+        elements.add(value.substring(start).trim());
+        return elements;
     }
 }

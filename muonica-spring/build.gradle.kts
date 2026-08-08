@@ -14,6 +14,7 @@ dependencies {
     compileOnly("jakarta.validation:jakarta.validation-api")
     compileOnly("com.fasterxml.jackson.core:jackson-databind")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testRuntimeOnly("jakarta.validation:jakarta.validation-api")
     testRuntimeOnly("jakarta.servlet:jakarta.servlet-api")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }

@@ -27,12 +27,13 @@ import io.muonica.spring.documentation.DocumentationComposer;
 import io.muonica.spring.documentation.DocumentationFileLoader;
 import io.muonica.spring.documentation.DocumentationResolution;
 import io.muonica.spring.documentation.DocumentationResolver;
-import java.lang.reflect.AnnotatedElement;
 import java.lang.annotation.Annotation;
+import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -46,12 +47,15 @@ import org.springframework.core.env.Environment;
 import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.util.ClassUtils;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.CookieValue;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
@@ -97,6 +101,7 @@ public final class MuonicaEndpointScanner implements SmartInitializingSingleton 
 
     private ApiProject buildProject() {
         SchemaResolver schemas = new SchemaResolver();
+        List<ApiResponse> globalResponses = globalResponses(schemas);
         DocumentationResolution projectDocumentation = projectDocumentation();
         Map<Class<?>, List<ApiEndpoint>> endpoints = new LinkedHashMap<>();
         Map<Class<?>, DocumentationResolution> groupDocumentation = new LinkedHashMap<>();
@@ -107,7 +112,7 @@ public final class MuonicaEndpointScanner implements SmartInitializingSingleton 
                     Class<?> controller = entry.getValue().getBeanType();
                     DocumentationResolution documentation = groupDocumentation.computeIfAbsent(controller, documentationResolver);
                     endpoints.computeIfAbsent(controller, ignored -> new ArrayList<>())
-                            .addAll(toEndpoints(entry, schemas, projectDocumentation, documentation).toList());
+                            .addAll(toEndpoints(entry, schemas, globalResponses, projectDocumentation, documentation).toList());
                 });
         List<ApiGroup> groups = endpoints.entrySet().stream().map(entry -> group(entry.getKey(), entry.getValue(), groupDocumentation.get(entry.getKey())))
                 .sorted(Comparator.comparing(ApiGroup::name)).toList();
@@ -137,6 +142,7 @@ public final class MuonicaEndpointScanner implements SmartInitializingSingleton 
     }
 
     private java.util.stream.Stream<ApiEndpoint> toEndpoints(Map.Entry<RequestMappingInfo, HandlerMethod> entry, SchemaResolver schemas,
+            List<ApiResponse> globalResponses,
             DocumentationResolution projectDocumentation, DocumentationResolution groupDocumentation) {
         RequestMappingInfo mapping = entry.getKey();
         HandlerMethod handler = entry.getValue();
@@ -144,10 +150,11 @@ public final class MuonicaEndpointScanner implements SmartInitializingSingleton 
         List<String> detectedMethods = mapping.getMethodsCondition().getMethods().stream().map(Enum::name).sorted().toList();
         List<String> methods = detectedMethods.isEmpty() ? List.of("ANY") : detectedMethods;
         return paths.stream().flatMap(path -> methods.stream().map(method -> endpoint(method, path, handler, mapping, schemas,
-                projectDocumentation, groupDocumentation)));
+                globalResponses, projectDocumentation, groupDocumentation)));
     }
 
     private ApiEndpoint endpoint(String method, String path, HandlerMethod handler, RequestMappingInfo mapping, SchemaResolver schemas,
+            List<ApiResponse> globalResponses,
             DocumentationResolution projectDocumentation, DocumentationResolution groupDocumentation) {
         Method javaMethod = handler.getMethod();
         MuonicaOperation operation = javaMethod.getAnnotation(MuonicaOperation.class);
@@ -176,15 +183,10 @@ public final class MuonicaEndpointScanner implements SmartInitializingSingleton 
             } else responses.put(status, new ApiResponse(status, "Success", Map.of()));
         }
         for (MuonicaResponse response : explicitResponses) {
-            String code = Integer.toString(response.status());
-            ApiSchema body = response.body() == Void.class ? null : schemas.resolve(response.body());
-            Map<String, ApiSchema> content = body == null ? Map.of() : Map.of(responseContentType(response, body, mapping), body);
-            Map<String, ApiHeader> headers = new LinkedHashMap<>();
-            for (MuonicaResponseHeader header : response.headers()) {
-                headers.put(header.name(), new ApiHeader(blankToNull(header.description()), schemas.resolve(header.schema())));
-            }
-            responses.put(code, new ApiResponse(code, response.description(), content, headers));
+            ApiResponse apiResponse = apiResponse(response, schemas, mapping);
+            responses.put(apiResponse.statusCode(), apiResponse);
         }
+        globalResponses.forEach(response -> responses.putIfAbsent(response.statusCode(), response));
         DocumentationResolution endpointDocumentation = documentationResolver.apply(javaMethod);
         boolean inheritsDocumentation = java.util.stream.Stream.of(javaMethod.getAnnotationsByType(MuonicaDocumentation.class))
                 .allMatch(MuonicaDocumentation::inherit);
@@ -198,6 +200,38 @@ public final class MuonicaEndpointScanner implements SmartInitializingSingleton 
                 java.util.stream.Stream.of(javaMethod.getAnnotationsByType(MuonicaBadge.class)).map(MuonicaBadge::value)
                         .filter(value -> !value.isBlank()).distinct().toList(),
                 composedDocumentation.warnings());
+    }
+
+    private List<ApiResponse> globalResponses(SchemaResolver schemas) {
+        Map<String, Object> adviceBeans = new LinkedHashMap<>();
+        addAdviceBeans(adviceBeans, RestControllerAdvice.class);
+        addAdviceBeans(adviceBeans, ControllerAdvice.class);
+
+        Map<String, ApiResponse> responses = new LinkedHashMap<>();
+        adviceBeans.values().stream()
+                .map(bean -> ClassUtils.getUserClass(bean))
+                .flatMap(type -> Arrays.stream(type.getMethods()))
+                .filter(method -> method.isAnnotationPresent(ExceptionHandler.class))
+                .flatMap(method -> Arrays.stream(method.getAnnotationsByType(MuonicaResponse.class)))
+                .map(response -> apiResponse(response, schemas, null))
+                .forEach(response -> responses.putIfAbsent(response.statusCode(), response));
+        return List.copyOf(responses.values());
+    }
+
+    private <A extends Annotation> void addAdviceBeans(Map<String, Object> adviceBeans, Class<A> annotationType) {
+        Map<String, Object> beans = applicationContext.getBeansWithAnnotation(annotationType);
+        if (beans != null) adviceBeans.putAll(beans);
+    }
+
+    private static ApiResponse apiResponse(MuonicaResponse response, SchemaResolver schemas, RequestMappingInfo mapping) {
+        String code = Integer.toString(response.status());
+        ApiSchema body = response.body() == Void.class ? null : schemas.resolve(response.body());
+        Map<String, ApiSchema> content = body == null ? Map.of() : Map.of(responseContentType(response, body, mapping), body);
+        Map<String, ApiHeader> headers = new LinkedHashMap<>();
+        for (MuonicaResponseHeader header : response.headers()) {
+            headers.put(header.name(), new ApiHeader(blankToNull(header.description()), schemas.resolve(header.schema())));
+        }
+        return new ApiResponse(code, response.description(), content, headers);
     }
 
     private ApiParameter parameter(Parameter parameter, SchemaResolver schemas) {
@@ -247,7 +281,8 @@ public final class MuonicaEndpointScanner implements SmartInitializingSingleton 
     }
 
     private static List<String> responseContentTypes(RequestMappingInfo mapping, ApiSchema schema) {
-        List<String> types = mapping.getProducesCondition().getProducibleMediaTypes().stream().map(Object::toString).sorted().toList();
+        List<String> types = mapping == null ? List.of() : mapping.getProducesCondition().getProducibleMediaTypes().stream()
+                .map(Object::toString).sorted().toList();
         if (!types.isEmpty()) return types;
         return isBinary(schema) ? List.of("application/octet-stream") : List.of("application/json");
     }
