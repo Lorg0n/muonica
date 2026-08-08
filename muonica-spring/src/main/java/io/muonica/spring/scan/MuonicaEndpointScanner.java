@@ -4,9 +4,13 @@ import io.muonica.core.annotation.api.MuonicaGroup;
 import io.muonica.core.annotation.api.MuonicaHidden;
 import io.muonica.core.annotation.api.MuonicaProject;
 import io.muonica.core.annotation.documentation.MuonicaDocumentation;
+import io.muonica.core.annotation.documentation.MuonicaPage;
 import io.muonica.core.model.api.ApiEndpoint;
 import io.muonica.core.model.api.ApiGroup;
 import io.muonica.core.model.api.ApiProject;
+import io.muonica.core.model.documentation.ApiDocumentationPage;
+import io.muonica.core.model.documentation.DocumentationBlock;
+import io.muonica.core.model.documentation.DocumentationWarning;
 import io.muonica.spring.documentation.DocumentationComposer;
 import io.muonica.spring.documentation.DocumentationFileLoader;
 import io.muonica.spring.documentation.DocumentationParser;
@@ -18,7 +22,10 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.function.BiFunction;
 import java.util.stream.Stream;
 import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.boot.SpringBootConfiguration;
@@ -39,26 +46,39 @@ public final class MuonicaEndpointScanner implements SmartInitializingSingleton 
     private final ApplicationContext applicationContext;
     private final Environment environment;
     private final Function<AnnotatedElement, DocumentationResolution> documentationResolver;
+    private final BiFunction<MuonicaPage, AnnotatedElement, DocumentationResolution> pageResolver;
     private final DocumentationComposer documentationComposer;
+    private final boolean documentationStrict;
     private volatile ApiProject cachedProject;
 
     public MuonicaEndpointScanner(RequestMappingHandlerMapping handlerMapping, ApplicationContext applicationContext,
             Environment environment) {
-        this(handlerMapping, applicationContext, environment,
-                new DocumentationResolver(
-                        new DocumentationFileLoader(applicationContext),
-                        new DocumentationParser(),
-                        environment)::resolve);
+        this(handlerMapping, applicationContext, environment, documentationResolver(applicationContext, environment));
+    }
+
+    private MuonicaEndpointScanner(RequestMappingHandlerMapping handlerMapping, ApplicationContext applicationContext,
+            Environment environment, DocumentationResolver resolver) {
+        this(handlerMapping, applicationContext, environment, resolver::resolve, resolver::resolvePage, resolver.strict());
     }
 
     MuonicaEndpointScanner(RequestMappingHandlerMapping handlerMapping, ApplicationContext applicationContext,
             Environment environment, Function<AnnotatedElement, DocumentationResolution> documentationResolver) {
+        this(handlerMapping, applicationContext, environment, documentationResolver,
+                (page, source) -> DocumentationResolution.empty(),
+                environment.getProperty("muonica.documentation.strict", Boolean.class, true));
+    }
+
+    MuonicaEndpointScanner(RequestMappingHandlerMapping handlerMapping, ApplicationContext applicationContext,
+            Environment environment, Function<AnnotatedElement, DocumentationResolution> documentationResolver,
+            BiFunction<MuonicaPage, AnnotatedElement, DocumentationResolution> pageResolver, boolean documentationStrict) {
         this.handlerMapping = handlerMapping;
         this.applicationContext = applicationContext;
         this.environment = environment;
         this.documentationResolver = documentationResolver;
+        this.pageResolver = pageResolver;
         this.documentationComposer = new DocumentationComposer(
                 environment.getProperty("muonica.documentation.strict", Boolean.class, true));
+        this.documentationStrict = documentationStrict;
     }
 
     public ApiProject scan() {
@@ -98,6 +118,9 @@ public final class MuonicaEndpointScanner implements SmartInitializingSingleton 
                 .map(entry -> group(entry.getKey(), entry.getValue(), groupDocumentation.get(entry.getKey())))
                 .sorted(Comparator.comparing(ApiGroup::name))
                 .toList();
+        DocumentationPages pages = documentationPages(projectClass, groups);
+        List<DocumentationWarning> documentationWarnings = new ArrayList<>(projectDocumentation.warnings());
+        documentationWarnings.addAll(pages.warnings());
         ProjectDetails project = projectDetails();
         return new ApiProject(
                 project.name(),
@@ -105,10 +128,81 @@ public final class MuonicaEndpointScanner implements SmartInitializingSingleton 
                 project.description(),
                 groups,
                 projectDocumentation.blocks(),
-                projectDocumentation.warnings(),
+                documentationWarnings,
+                pages.pages(),
                 AnnotationModelResolver.securitySchemes(projectClass),
                 AnnotationModelResolver.servers(projectClass),
                 schemas.components());
+    }
+
+    private DocumentationPages documentationPages(Class<?> projectClass, List<ApiGroup> groups) {
+        if (projectClass == null) {
+            return new DocumentationPages(List.of(), List.of());
+        }
+        Set<String> titles = new HashSet<>();
+        List<ApiDocumentationPage> pages = new ArrayList<>();
+        List<DocumentationWarning> skippedWarnings = new ArrayList<>();
+        for (MuonicaPage page : projectClass.getAnnotationsByType(MuonicaPage.class)) {
+            DocumentationResolution resolution = pageResolver.apply(page, projectClass);
+            List<DocumentationWarning> warnings = new ArrayList<>(resolution.warnings());
+            if (resolution.blocks().isEmpty() && !warnings.isEmpty()) {
+                skippedWarnings.addAll(warnings);
+                continue;
+            }
+            if (!titles.add(page.title())) {
+                pageProblem(warnings, "DUPLICATE_PAGE_TITLE", page.title(), null,
+                        "Documentation page titles must be unique: " + page.title());
+                skippedWarnings.addAll(warnings);
+                continue;
+            }
+            List<DocumentationBlock> blocks = new ArrayList<>();
+            for (DocumentationBlock block : resolution.blocks()) {
+                if (block.type().equals("slot")) {
+                    pageProblem(warnings, "INVALID_PAGE_SLOT", source(block, page.title()), line(block),
+                            "Documentation pages cannot contain endpoint slots");
+                    continue;
+                }
+                if (block.type().equals("endpoint") && !documentedEndpoint(block, groups)) {
+                    String reference = block.attributes().get("method") + " " + block.attributes().get("path");
+                    pageProblem(warnings, "UNKNOWN_ENDPOINT_REFERENCE", source(block, page.title()), line(block),
+                            "No documented endpoint matches " + reference);
+                    continue;
+                }
+                blocks.add(block);
+            }
+            if (blocks.isEmpty() && !warnings.isEmpty()) {
+                skippedWarnings.addAll(warnings);
+                continue;
+            }
+            pages.add(new ApiDocumentationPage(page.title(), blocks, warnings));
+        }
+        return new DocumentationPages(pages, skippedWarnings);
+    }
+
+    private void pageProblem(List<DocumentationWarning> warnings, String type, String resource, Integer line,
+            String message) {
+        if (documentationStrict) {
+            throw new IllegalStateException(message + " (" + resource + (line == null ? "" : ":" + line) + ")");
+        }
+        warnings.add(new DocumentationWarning(type, resource, line, message));
+    }
+
+    private static boolean documentedEndpoint(DocumentationBlock block, List<ApiGroup> groups) {
+        String method = String.valueOf(block.attributes().get("method"));
+        String path = String.valueOf(block.attributes().get("path"));
+        return groups.stream()
+                .flatMap(group -> group.endpoints().stream())
+                .anyMatch(endpoint -> endpoint.method().equalsIgnoreCase(method) && endpoint.path().equals(path));
+    }
+
+    private static String source(DocumentationBlock block, String fallback) {
+        Object source = block.attributes().get("source");
+        return source == null ? fallback : source.toString();
+    }
+
+    private static Integer line(DocumentationBlock block) {
+        Object line = block.attributes().get("line");
+        return line instanceof Integer value ? value : null;
     }
 
     private void collectEndpoints(Map.Entry<RequestMappingInfo, HandlerMethod> entry, EndpointFactory endpointFactory,
@@ -180,6 +274,15 @@ public final class MuonicaEndpointScanner implements SmartInitializingSingleton 
                 return type;
             }
         }
+        String[] pageBeans = applicationContext.getBeanNamesForAnnotation(MuonicaPage.class);
+        if (pageBeans != null) {
+            for (String bean : pageBeans) {
+                Class<?> type = userClass(bean);
+                if (type != null && AnnotatedElementUtils.hasAnnotation(type, SpringBootConfiguration.class)) {
+                    return type;
+                }
+            }
+        }
         return null;
     }
 
@@ -196,5 +299,12 @@ public final class MuonicaEndpointScanner implements SmartInitializingSingleton 
     }
 
     private record ProjectDetails(String name, String version, String description) {
+    }
+
+    private record DocumentationPages(List<ApiDocumentationPage> pages, List<DocumentationWarning> warnings) {
+    }
+
+    private static DocumentationResolver documentationResolver(ApplicationContext applicationContext, Environment environment) {
+        return new DocumentationResolver(new DocumentationFileLoader(applicationContext), new DocumentationParser(), environment);
     }
 }

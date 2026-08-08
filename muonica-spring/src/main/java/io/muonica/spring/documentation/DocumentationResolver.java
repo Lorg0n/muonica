@@ -1,6 +1,7 @@
 package io.muonica.spring.documentation;
 
 import io.muonica.core.annotation.documentation.MuonicaDocumentation;
+import io.muonica.core.annotation.documentation.MuonicaPage;
 import io.muonica.core.model.documentation.DocumentationBlock;
 import io.muonica.core.model.documentation.DocumentationWarning;
 import java.lang.reflect.AnnotatedElement;
@@ -51,6 +52,37 @@ public final class DocumentationResolver {
             }
         }
         return new DocumentationResolution(blocks, warnings);
+    }
+
+    /** Resolves one standalone project page from inline Markdown or a classpath resource. */
+    public DocumentationResolution resolvePage(MuonicaPage page, AnnotatedElement source) {
+        String sourceName = sourceName(source) + " page '" + page.title() + "'";
+        try {
+            if (page.title().isBlank()) {
+                throw new DocumentationException("INVALID_PAGE_TITLE", sourceName, null,
+                        "MuonicaPage.title must not be blank");
+            }
+            boolean hasContent = !page.content().isBlank();
+            boolean hasFile = !page.file().isBlank();
+            if (hasContent == hasFile) {
+                throw new DocumentationException("INVALID_PAGE_SOURCE", sourceName, null,
+                        "Exactly one of MuonicaPage.content or file must be specified");
+            }
+            List<DocumentationBlock> blocks = hasFile
+                    ? parsedFiles.computeIfAbsent(page.file(), location -> parser.parse(fileLoader.load(location), location))
+                    : parser.parse(page.content(), sourceName);
+            return new DocumentationResolution(blocks, List.of());
+        } catch (DocumentationException exception) {
+            if (strict) {
+                throw exception;
+            }
+            return new DocumentationResolution(List.of(), List.of(
+                    new DocumentationWarning(exception.type(), exception.resource(), exception.line(), exception.getMessage())));
+        }
+    }
+
+    public boolean strict() {
+        return strict;
     }
 
     private List<DocumentationBlock> resolveAnnotation(MuonicaDocumentation annotation, AnnotatedElement source) {

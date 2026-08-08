@@ -534,6 +534,36 @@ function genericDocumentationBlock(block) {
     return `<section class="section-block content-surface p-5"><div class="flex items-center justify-between gap-3 mb-3"><p class="section-meta">${escapeHtml(block.type)}</p>${blockSource(block)}</div><pre class="whitespace-pre-wrap text-sm text-ink-300 font-sans leading-relaxed">${escapeHtml(block.content)}</pre></section>`;
 }
 
+function endpointReferenceBlock(block, project) {
+    const method = String(block.attributes?.method || "").toUpperCase();
+    const path = String(block.attributes?.path || "");
+    const group = (project.groups || []).find(group => (group.endpoints || []).some(endpoint =>
+        String(endpoint.method || "").toUpperCase() === method && endpoint.path === path));
+    const endpoint = group?.endpoints?.find(candidate => String(candidate.method || "").toUpperCase() === method && candidate.path === path);
+    if (!endpoint || !group) return "";
+    const resolvedGroupIndex = (project.groups || []).indexOf(group);
+    const endpointIndex = group.endpoints.indexOf(endpoint);
+    const key = `${resolvedGroupIndex}:${endpointIndex}`;
+    const title = endpoint.summary || `${method} ${path}`;
+    return `<section class="section-block endpoint-reference content-surface" data-endpoint-reference="${escapeHtml(key)}">
+        <div class="endpoint-reference-details">
+            ${methodBadge(method)}
+            <div class="min-w-0"><p class="endpoint-reference-title">${escapeHtml(title)}</p><code class="endpoint-reference-path">${escapeHtml(path)}</code></div>
+        </div>
+        <button class="endpoint-reference-try" data-page-try="${escapeHtml(key)}" type="button">Try</button>
+    </section>`;
+}
+
+function documentationPageBlocks(blocks, project) {
+    return (blocks || []).map(block => {
+        if (block.type === "markdown") return `<section class="section-block prose-documentation markdown">${renderMarkdown(block.content)}${blockSource(block)}</section>`;
+        if (block.type === "notice") return noticeBlock(block);
+        if (block.type === "diagram") return diagramBlock(block);
+        if (block.type === "endpoint") return endpointReferenceBlock(block, project);
+        return genericDocumentationBlock(block);
+    }).join("");
+}
+
 export function documentationBlocks(blocks, endpoint, project, state = {}) {
     const rendered = block => {
         if (block.type === "markdown") return `<section class="section-block prose-documentation markdown">${renderMarkdown(block.content)}${blockSource(block)}</section>`;
@@ -598,7 +628,9 @@ function authorizationModal(project, state = {}) {
 
 export function renderShell(project, selected, query, menuOpen = false, state = {}) {
     const groups = project.groups || [];
+    const documentationPages = project.documentationPages || [];
     const endpoint = selected?.endpoint;
+    const selectedPage = Number.isInteger(state.selectedPageIndex) ? documentationPages[state.selectedPageIndex] : undefined;
     const selectedSchemaName = state.selectedSchemaName;
     const selectedSchema = selectedSchemaName ? project.schemas?.[selectedSchemaName] : null;
     const title = endpoint ? endpoint.summary || `${endpoint.method} ${endpoint.path}` : project.name || "Muonica";
@@ -637,7 +669,7 @@ export function renderShell(project, selected, query, menuOpen = false, state = 
             <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3" stroke-linecap="round"/></svg>
             <input id="mobile-search" class="docs-search-input w-full bg-transparent text-sm outline-none placeholder:text-ink-500 text-white" dir="ltr" placeholder="Search documentation" value="${escapeHtml(query)}" autocomplete="off">
         </label>
-        <nav aria-label="API navigation">${renderNavigation(groups, project.schemas, selected?.key, query, state)}</nav>
+        <nav aria-label="API navigation">${renderNavigation(documentationPages, groups, project.schemas, selected?.key, state.selectedPageIndex, query, state)}</nav>
     </div>` : ""}
 
     ${authorizationModal(project, state)}
@@ -645,14 +677,13 @@ export function renderShell(project, selected, query, menuOpen = false, state = 
     <div class="flex">
         <div data-sidebar-shell class="hidden lg:block sidebar-shell" style="--muonica-sidebar-width: ${sidebarWidth}px">
             <aside data-sidebar data-preserve-scroll="sidebar-navigation" class="doc-nav border-r border-ink-800 overflow-y-auto px-5 py-8">
-            <p class="eyebrow mb-3">Documentation</p>
-            <nav id="sidebar" aria-label="API navigation">${renderNavigation(groups, project.schemas, selected?.key, query, state)}</nav>
+            <nav id="sidebar" aria-label="API navigation">${renderNavigation(documentationPages, groups, project.schemas, selected?.key, state.selectedPageIndex, query, state)}</nav>
             </aside>
             <div class="sidebar-resizer" data-sidebar-resizer role="separator" aria-label="Resize navigation panel" aria-orientation="vertical" aria-valuemin="${SIDEBAR_WIDTH_MIN}" aria-valuemax="${SIDEBAR_WIDTH_MAX}" aria-valuenow="${sidebarWidth}" tabindex="0"></div>
         </div>
 
         <main class="docs-main flex-1 min-w-0 px-6 lg:px-12 py-10 lg:py-14">
-            ${endpoint ? `<div class="mx-auto max-w-[1180px]">
+            ${selectedPage ? `<div class="mx-auto max-w-[1180px]"><div class="endpoint-hero"><p class="eyebrow mb-3">Documentation</p><h1 class="endpoint-title text-4xl lg:text-5xl font-extrabold text-white tracking-tight mb-4">${escapeHtml(selectedPage.title)}</h1></div><article class="docs-article max-w-[850px]">${documentationPageBlocks(selectedPage.blocks, project)}</article></div>` : endpoint ? `<div class="mx-auto max-w-[1180px]">
                 <div class="endpoint-hero">
                     <p class="eyebrow mb-3">${escapeHtml(selected.group.name || "API documentation")}</p>
                     <h1 class="endpoint-title text-4xl lg:text-5xl font-extrabold text-white tracking-tight mb-4">${escapeHtml(title)}</h1>
@@ -685,8 +716,13 @@ export function renderShell(project, selected, query, menuOpen = false, state = 
     </div>`;
 }
 
-function renderNavigation(groups, schemas, selectedKey, query, state = {}) {
+function renderNavigation(pages, groups, schemas, selectedKey, selectedPageIndex, query, state = {}) {
     const term = query.trim().toLowerCase();
+    const pageMarkup = pages.map((page, index) => ({page, index}))
+        .filter(({page}) => !term || String(page.title || "").toLowerCase().includes(term))
+        .map(({page, index}) => `<button class="documentation-page-link w-full text-left rounded-lg px-3 py-2 text-sm transition-colors ${index === selectedPageIndex ? "text-white bg-ink-800 font-medium" : "text-ink-400 hover:text-ink-200 hover:bg-ink-900"}" data-documentation-page="${index}" ${index === selectedPageIndex ? 'aria-current="page"' : ""} type="button">${escapeHtml(page.title)}</button>`)
+        .join("");
+    const pageSection = pageMarkup ? `<div class="mb-7"><p class="eyebrow mb-2">Documentation</p><nav class="space-y-0.5 text-[14px]">${pageMarkup}</nav></div>` : "";
     const endpointMarkup = groups.map((group, groupIndex) => {
         const endpoints = (group.endpoints || []).filter(endpoint => !term || [endpoint.path, endpoint.summary, endpoint.description, group.name].filter(Boolean).join(" ").toLowerCase().includes(term));
         if (!endpoints.length) return "";
@@ -712,8 +748,8 @@ function renderNavigation(groups, schemas, selectedKey, query, state = {}) {
         }).join("")}</nav></div>`;
     }).join("");
     const schemaMarkup = schemaNavigation(schemas, query, state);
-    return endpointMarkup || schemaMarkup
-        ? `${endpointMarkup}${schemaMarkup}`
+    return pageSection || endpointMarkup || schemaMarkup
+        ? `${pageSection}${endpointMarkup}${schemaMarkup}`
         : `<p class="text-sm text-ink-400">No matching documentation.</p>`;
 }
 

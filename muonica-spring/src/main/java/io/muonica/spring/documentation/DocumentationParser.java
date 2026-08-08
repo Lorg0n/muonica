@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
 
 /** Parses Markdown and Muonica block directives into neutral documentation blocks. */
 public final class DocumentationParser {
-    private static final Pattern DIRECTIVE = Pattern.compile("^\\s*:::(notice|diagram|slot)(?:\\s+([^\\s]+))?\\s*$");
+    private static final Pattern DIRECTIVE = Pattern.compile("^\\s*:::[ \\t]*(\\w+)(?:[ \\t]+(.*))?$");
 
     public List<DocumentationBlock> parse(String source, String resource) {
         String normalized = source.replace("\r\n", "\n").replace('\r', '\n');
@@ -92,6 +92,20 @@ public final class DocumentationParser {
                 attributes.put("name", argument);
                 attributes.put("generated", false);
                 return new DocumentationBlock("slot", "", attributes);
+            }
+            case "endpoint" -> {
+                if (!content.isBlank()) {
+                    throw error("INVALID_ENDPOINT_REFERENCE", resource, line,
+                            "An endpoint directive cannot contain a body");
+                }
+                String[] parts = argument == null ? new String[0] : argument.trim().split("\\s+", 2);
+                if (parts.length != 2 || !parts[0].matches("[A-Za-z]+") || !parts[1].startsWith("/")) {
+                    throw error("INVALID_ENDPOINT_REFERENCE", resource, line,
+                            "Use an endpoint directive in the form ::: endpoint METHOD /path");
+                }
+                attributes.put("method", parts[0].toUpperCase());
+                attributes.put("path", parts[1]);
+                return new DocumentationBlock("endpoint", "", attributes);
             }
             default -> throw error("UNKNOWN_DIRECTIVE", resource, line, "Unknown documentation directive: " + directive);
         }

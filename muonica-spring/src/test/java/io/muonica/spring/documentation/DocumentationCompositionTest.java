@@ -29,6 +29,16 @@ class DocumentationCompositionTest {
     }
 
     @Test
+    void parsesEndpointReferenceDirective() {
+        List<DocumentationBlock> blocks = parser.parse("::: endpoint post /orders\n:::", "page.md");
+
+        DocumentationBlock endpoint = blocks.get(0);
+        assertEquals("endpoint", endpoint.type());
+        assertEquals("POST", endpoint.attributes().get("method"));
+        assertEquals("/orders", endpoint.attributes().get("path"));
+    }
+
+    @Test
     void resolvesNearestSlotsAndAppendsOnlyMissingGeneratedSlots() {
         DocumentationResolution project = resolution(
                 markdown("Project"), slot("security"));

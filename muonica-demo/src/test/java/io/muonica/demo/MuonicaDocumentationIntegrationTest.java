@@ -54,6 +54,11 @@ class MuonicaDocumentationIntegrationTest {
         assertNotNull(project.schemas().get("UserResponse"));
         assertTrue(project.schemas().get("UserResponse").properties().containsKey("role"));
         assertEquals("markdown", project.documentationBlocks().get(0).type());
+        assertEquals(1, project.documentationPages().size());
+        assertEquals("Getting started", project.documentationPages().get(0).title());
+        assertTrue(project.documentationPages().get(0).blocks().stream().anyMatch(block -> block.type().equals("endpoint")
+                && block.attributes().get("method").equals("POST")
+                && block.attributes().get("path").equals("/orders")));
         ApiEndpoint getUser = project.groups().stream().flatMap(group -> group.endpoints().stream())
                 .filter(endpoint -> endpoint.method().equals("GET") && endpoint.path().equals("/users/{id}"))
                 .findFirst().orElseThrow();

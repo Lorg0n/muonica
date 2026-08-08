@@ -10,6 +10,7 @@ const root = document.querySelector("#app");
 const state = {
     project: null,
     selectedKey: undefined,
+    selectedPageIndex: undefined,
     query: "",
     menuOpen: false,
     authorizationModalOpen: false,
@@ -32,6 +33,7 @@ const state = {
             securityGroupIndex: this.securityGroupIndexes.get(this.selectedKey) || 0,
             schemasOpen: this.schemasOpen,
             selectedSchemaName: this.selectedSchemaName,
+            selectedPageIndex: this.selectedPageIndex,
             sidebarWidth: this.sidebarWidth,
             authorization: this.authorization,
             authorizationModalOpen: this.authorizationModalOpen
@@ -107,6 +109,14 @@ function render() {
     root.querySelectorAll("[data-preserve-scroll]").forEach(element => {
         element.scrollTop = scrollPositions.get(element.dataset.preserveScroll) || 0;
     });
+}
+
+function selectEndpoint(key, focusRequest = false) {
+    store.update({selectedKey: key, selectedPageIndex: undefined, selectedSchemaName: undefined, menuOpen: false});
+    if (!focusRequest) return;
+    const panel = root.querySelector("[data-code-panel]");
+    panel?.scrollIntoView({behavior: "smooth", block: "start"});
+    root.querySelector("#send-btn")?.focus({preventScroll: true});
 }
 
 function updateSearch(input) {
@@ -185,8 +195,11 @@ root.addEventListener("click", async event => {
     const button = event.target.closest("button");
     if (!button) return;
     if (button.matches("#menu-toggle")) return store.update({menuOpen: !state.menuOpen});
-    if (button.matches(".endpoint-link")) return store.update({selectedKey: button.dataset.endpoint, selectedSchemaName: undefined, menuOpen: false});
-    if (button.matches(".schema-link")) return store.update({selectedKey: undefined, selectedSchemaName: button.dataset.schema, menuOpen: false});
+    if (button.matches(".endpoint-link")) return selectEndpoint(button.dataset.endpoint);
+    if (button.matches(".documentation-page-link")) return store.update({selectedKey: undefined, selectedPageIndex: Number(button.dataset.documentationPage), selectedSchemaName: undefined, menuOpen: false});
+    if (button.matches("[data-page-endpoint]")) return selectEndpoint(button.dataset.pageEndpoint);
+    if (button.matches("[data-page-try]")) return selectEndpoint(button.dataset.pageTry, true);
+    if (button.matches(".schema-link")) return store.update({selectedKey: undefined, selectedPageIndex: undefined, selectedSchemaName: button.dataset.schema, menuOpen: false});
     if (button.matches("[data-optional-parameters-toggle]")) {
         state.optionalParametersOpen.set(state.selectedKey, !state.optionalParametersOpen.get(state.selectedKey));
         return render();
@@ -246,7 +259,8 @@ async function start() {
     root.innerHTML = '<div class="grid min-h-screen place-items-center text-ink-400">Loading documentation…</div>';
     try {
         state.project = await loadProject();
-        state.selectedKey = allEndpoints(state.project)[0]?.key;
+        if (state.project.documentationPages?.length) state.selectedPageIndex = 0;
+        else state.selectedKey = allEndpoints(state.project)[0]?.key;
         render();
     } catch (error) {
         root.innerHTML = `<main class="grid min-h-screen place-items-center p-6"><section class="max-w-md rounded-xl border border-ink-800 bg-ink-900 p-6"><h1 class="text-xl font-bold text-white">Documentation unavailable</h1><p class="mt-2 text-ink-400">${escapeHtml(error.message)}</p><button class="mt-5 rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white hover:bg-brand/90 transition-colors" onclick="location.reload()" type="button">Try again</button></section></main>`;

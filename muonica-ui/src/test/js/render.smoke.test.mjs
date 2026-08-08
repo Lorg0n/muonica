@@ -44,6 +44,14 @@ const project = {
         parameterName: "Authorization",
         parameterLocation: "HEADER"
     }],
+    documentationPages: [{
+        title: "Getting started",
+        blocks: [
+            { type: "markdown", content: "# Start here", attributes: {}, origin: "USER" },
+            { type: "endpoint", content: "", attributes: { method: "GET", path: "/users/{id}" }, origin: "USER" }
+        ],
+        warnings: []
+    }],
     groups: [{
         name: "Users",
         endpoints: [{
@@ -180,6 +188,22 @@ test("renders an endpoint as an article flow", () => {
     assert.match(mobileHtml, /id="mobile-search"/);
     assert.match(mobileHtml, /data-preserve-scroll="mobile-navigation"/);
     assert.match(mobileHtml, /aria-expanded="true"/);
+});
+
+test("renders authored pages and endpoint reference actions", () => {
+    const html = renderShell(project, undefined, "", false, { selectedPageIndex: 0 });
+
+    assert.match(html, /<p class="eyebrow mb-2">Documentation<\/p>/);
+    assert.match(html, /class="documentation-page-link[^>]*data-documentation-page="0"[^>]*aria-current="page"/);
+    assert.match(html, /<h1 class="endpoint-title[^>]*>Getting started<\/h1>/);
+    assert.match(html, /data-endpoint-reference="0:0"/);
+    assert.match(html, /data-page-try="0:0"/);
+    assert.match(html, />Try<\/button>/);
+    assert.doesNotMatch(html, />Open endpoint<\/button>/);
+
+    const withoutPages = renderShell({...project, documentationPages: []},
+        { group: project.groups[0], endpoint: project.groups[0].endpoints[0], key: "0:0" }, "");
+    assert.doesNotMatch(withoutPages, />Documentation<\/p>/);
 });
 
 test("renders filterable schemas as navigation links and a dedicated schema reference", () => {
